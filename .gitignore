@@ -6,7 +6,6 @@ __pycache__/
 .Python
 venv/
 env/
-.env
 *.egg-info/
 dist/
 build/
@@ -28,8 +27,7 @@ Thumbs.db
 # Large model files (binary, not useful in git)
 models/*.task
 
-# Uploads & outputs
-uploads/
+# Outputs
 output/
 
 # External repos (too large)
