@@ -25,12 +25,8 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Large model/data files
+# Large model files (binary, not useful in git)
 models/*.task
-datasets/speech_dataset_1/
-datasets/speech_dataset_2/
-datasets/IPIP-FFM-data-8Nov2018/data-final.csv
-datasets/coco-2017-validation/data/
 
 # Uploads & outputs
 uploads/
