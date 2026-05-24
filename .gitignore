@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs & temp
+*.log
+/tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Large model/data files
+models/*.task
+datasets/speech_dataset_1/
+datasets/speech_dataset_2/
+datasets/IPIP-FFM-data-8Nov2018/data-final.csv
+datasets/coco-2017-validation/data/
+
+# Uploads & outputs
+uploads/
+output/
+
+# External repos (too large)
+external_repos/
+
+# Secrets already excluded via .env above

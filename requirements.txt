@@ -1,0 +1,37 @@
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.24.0
+fer>=22.5.0
+speechrecognition>=3.10.0
+pydub>=0.25.1
+librosa>=0.10.0
+soundfile>=0.12.0
+moviepy>=1.0.3
+rich>=13.0.0
+deepface>=0.0.79
+tf-keras>=2.15.0
+google-genai>=1.0.0
+python-dotenv>=1.0.0
+flask>=3.0.0
+
+# ── Digital Twin / LangChain / LangGraph stack ────────────────────
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-google-genai>=2.0.0
+langgraph-checkpoint-redis>=0.1.0
+langgraph-checkpoint-postgres>=0.1.0
+
+# ── Deep Agents SDK (local external_repos/deepagents) ────────────
+# Install from local path: pip install -e external_repos/deepagents
+# deepagents>=0.1.0
+
+# ── Vector stores ─────────────────────────────────────────────────
+pinecone>=3.0.0
+weaviate-client>=4.0.0
+
+# ── Cache / storage ───────────────────────────────────────────────
+redis>=5.0.0
+psycopg2-binary>=2.9.0
+
+# ── Auth ──────────────────────────────────────────────────────────
+PyJWT>=2.8.0

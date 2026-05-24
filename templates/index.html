@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧠 AI Behaviour Counsellor</title>
+<!-- jsPDF for PDF export (pure text, no canvas screenshot) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d13;--card:#13161f;--card2:#1a1e2b;--border:#252a3a;
+  --accent:#7c6af6;--accent2:#a599ff;--accentGlow:rgba(124,106,246,.18);
+  --green:#2dd4a8;--greenBg:rgba(45,212,168,.10);--greenBorder:rgba(45,212,168,.28);
+  --yellow:#f5c542;--yellowBg:rgba(245,197,66,.10);--yellowBorder:rgba(245,197,66,.28);
+  --red:#f87171;--redBg:rgba(248,113,113,.10);--redBorder:rgba(248,113,113,.25);
+  --orange:#fb923c;--orangeBg:rgba(251,146,60,.10);--orangeBorder:rgba(251,146,60,.25);
+  --text:#d1d5e0;--muted:#7a809a;--white:#f0f2f8;
+  --radius:16px;--shadow:0 4px 24px rgba(0,0,0,.4);
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center}
+.hidden{display:none!important}
+.fade-in{animation:fadeIn .55s ease forwards;opacity:0}
+@keyframes fadeIn{to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.slide-up{animation:slideUp .5s ease forwards;opacity:0}
+
+/* ─── Mode Nav ─── */
+#mode-nav{position:sticky;top:0;z-index:100;width:100%;background:rgba(11,13,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:0}
+.mode-btn{padding:14px 36px;font-size:.92rem;font-weight:700;border:none;background:transparent;color:var(--muted);cursor:pointer;transition:.2s;border-bottom:3px solid transparent;letter-spacing:.2px}
+.mode-btn:hover{color:var(--white)}
+.mode-btn.active{color:var(--accent2);border-bottom-color:var(--accent)}
+
+/* ─── Header ─── */
+header{width:100%;max-width:960px;text-align:center;padding:52px 24px 8px}
+header h1{font-size:1.9rem;font-weight:800;color:var(--white);letter-spacing:-.3px}
+header h1 .ai{background:linear-gradient(135deg,var(--accent),#b396ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header p{color:var(--muted);margin-top:8px;font-size:.92rem;line-height:1.6;max-width:540px;margin-inline:auto}
+
+/* ─── Upload ─── */
+#upload-section{width:100%;max-width:600px;margin:36px auto 0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:42px 36px;box-shadow:var(--shadow);text-align:center}
+.drop-zone{border:2px dashed var(--border);border-radius:14px;padding:52px 24px;cursor:pointer;transition:.25s}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accentGlow)}
+.drop-zone .icon{font-size:3.2rem;margin-bottom:10px}
+.drop-zone p{color:var(--muted);font-size:.9rem;line-height:1.6}
+.drop-zone p strong{color:var(--accent2)}
+#file-input{display:none}
+#file-name{margin-top:14px;font-size:.86rem;color:var(--green);min-height:22px}
+#analyze-btn{margin-top:24px;padding:14px 52px;font-size:1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),#9585ff);color:#fff;border:none;border-radius:12px;cursor:pointer;transition:.25s;letter-spacing:.2px}
+#analyze-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(124,106,246,.35)}
+#analyze-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* ─── Progress ─── */
+#progress-section{width:100%;max-width:600px;margin:36px auto 0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:40px;box-shadow:var(--shadow);text-align:center}
+.spinner{width:52px;height:52px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 20px}
+#progress-text{color:var(--accent2);font-size:1.05rem;font-weight:600}
+#progress-sub{color:var(--muted);font-size:.83rem;margin-top:8px}
+
+/* ─── Results ─── */
+#results-section{width:100%;max-width:960px;margin:40px auto 64px;display:flex;flex-direction:column;gap:24px;padding:0 12px}
+
+/* ─── Counsellor Header ─── */
+.counsellor-banner{background:linear-gradient(135deg,rgba(124,106,246,.12),rgba(45,212,168,.06));border:1px solid rgba(124,106,246,.22);border-radius:var(--radius);padding:28px 32px;text-align:center}
+.counsellor-banner h2{font-size:1.3rem;font-weight:800;color:var(--white);margin-bottom:8px}
+.counsellor-banner .subtitle{color:var(--accent2);font-size:.88rem;font-weight:500;margin-bottom:16px}
+.counsellor-banner .summary{color:var(--text);font-size:.96rem;line-height:1.75;max-width:700px;margin:0 auto}
+.counsellor-banner .personality{color:#b0b5cc;font-size:.9rem;line-height:1.6;margin-top:12px;font-style:italic}
+
+/* ─── Card ─── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px 30px;box-shadow:var(--shadow)}
+.card h2{font-size:1.1rem;font-weight:700;color:var(--white);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.card h3{font-size:.95rem;font-weight:600;color:var(--accent2);margin:20px 0 10px}
+
+/* ─── Strengths / Weaknesses ─── */
+.sw-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:680px){.sw-grid{grid-template-columns:1fr}}
+.sw-item{padding:18px 20px;border-radius:12px;line-height:1.6}
+.sw-item .sw-title{font-weight:700;font-size:.9rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.sw-item .sw-detail{font-size:.85rem;color:#c8cce0;line-height:1.7}
+.sw-strength{background:var(--greenBg);border:1px solid var(--greenBorder)}
+.sw-strength .sw-title{color:var(--green)}
+.sw-weakness{background:var(--redBg);border:1px solid var(--redBorder)}
+.sw-weakness .sw-title{color:var(--red)}
+
+/* ─── Scenario Cards ─── */
+.scenario-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:720px){.scenario-cards{grid-template-columns:1fr}}
+.scenario-card{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:26px 22px;text-align:center;transition:.25s}
+.scenario-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.scenario-card .sc-emoji{font-size:2.2rem;margin-bottom:6px}
+.scenario-card .sc-label{font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:#b0b5cc;margin-bottom:14px;font-weight:600}
+.ring-wrap{position:relative;width:110px;height:110px;margin:0 auto 12px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--border);stroke-width:7}
+.ring-fg{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1.2s ease}
+.ring-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800}
+.scenario-card .sc-verdict{font-size:.84rem;font-weight:700;margin-bottom:10px;color:var(--white)}
+.scenario-card .sc-advice{font-size:.84rem;color:#c8cce0;line-height:1.7;text-align:left;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+
+/* ─── Improvement Plan ─── */
+.plan-item{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:14px}
+.plan-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.plan-area{font-weight:700;font-size:.95rem;color:var(--white)}
+.plan-priority{font-size:.72rem;font-weight:700;padding:3px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.priority-high{background:var(--redBg);color:var(--red);border:1px solid var(--redBorder)}
+.priority-medium{background:var(--yellowBg);color:var(--yellow);border:1px solid var(--yellowBorder)}
+.priority-low{background:var(--greenBg);color:var(--green);border:1px solid var(--greenBorder)}
+.plan-states{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.plan-state{font-size:.84rem;line-height:1.6;padding:10px 14px;border-radius:8px;color:#c8cce0}
+.plan-state .ps-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:4px}
+.state-now{background:var(--redBg);border:1px solid var(--redBorder)}
+.state-now .ps-label{color:var(--red)}
+.state-target{background:var(--greenBg);border:1px solid var(--greenBorder)}
+.state-target .ps-label{color:var(--green)}
+.plan-steps{list-style:none;padding:0}
+.plan-steps li{font-size:.84rem;color:var(--text);padding:6px 0 6px 22px;position:relative;line-height:1.5}
+.plan-steps li::before{content:'→';position:absolute;left:0;color:var(--accent2);font-weight:700}
+
+/* ─── Closing ─── */
+.closing-box{background:linear-gradient(135deg,var(--accentGlow),rgba(45,212,168,.06));border:1px solid rgba(124,106,246,.22);border-radius:14px;padding:24px 28px;text-align:center;font-size:.96rem;line-height:1.75;color:var(--white)}
+
+/* ─── Score Bars ─── */
+.bar-group{margin-bottom:14px}
+.bar-label{display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:5px}
+.bar-label span:first-child{color:var(--text)}
+.bar-label span:last-child{font-weight:700}
+.bar-track{height:8px;background:var(--card2);border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;transition:width 1s ease}
+
+/* ─── Footer ─── */
+footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
+
+/* ─── Print / PDF Export ─── */
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  @page{margin:12mm 10mm;size:A4 portrait}
+  html,body{background:#e9eaef!important;color:#050510!important;font-size:12px!important;display:block!important;height:auto!important;min-height:0!important}
+  header,footer,#upload-section,#progress-section,#context-section,button{display:none!important}
+  #results-section{display:block!important;visibility:visible!important;opacity:1!important;margin:0!important;padding:4px 0!important;max-width:100%!important;width:100%!important;gap:0!important}
+  .hidden{display:block!important;visibility:visible!important}
+  .slide-up,.fade-in{opacity:1!important;transform:none!important;animation:none!important}
+  .card,.counsellor-banner,.layer-card,.scenario-card,.plan-item,.closing-box,.coach-verdict{background:#ffffff!important;border:2px solid #7880b0!important;border-radius:8px!important;padding:12px 14px!important;margin-bottom:10px!important;page-break-inside:avoid!important;break-inside:avoid!important;display:block!important}
+  .counsellor-banner{background:linear-gradient(135deg,#ccc6ff,#c4f0e2)!important;border-color:#5a4ec8!important}
+  .coach-verdict{background:#d8d4ff!important;border-color:#5a4ec8!important}
+  .closing-box{background:#d8d4ff!important;border-color:#5a4ec8!important;text-align:center!important}
+  h2{color:#050510!important;font-weight:800!important;font-size:.95rem!important;margin:0 0 8px!important}
+  h3{color:#050510!important;font-weight:700!important;font-size:.82rem!important;margin:8px 0 5px!important}
+  *,p,span,li,div,td,th{color:#050510!important}
+  .summary,.personality,.lc-summary,.sc-advice,.sw-detail,.plan-state,.bar-label span,.layer-list li,.plan-steps li{color:#050510!important;font-weight:500!important}
+  .subtitle,.ctx-hint,.sc-label{color:#1a1a38!important;font-weight:600!important}
+  .cv-label,.tl-label,.sc-ww-label,.layer-sub{color:#1808a0!important;font-weight:700!important}
+  .lc-score{color:#1808a0!important;font-weight:800!important}
+  .cv-text,.sc-verdict,.lc-title,.plan-area{color:#050510!important;font-weight:700!important}
+  .ring-text{color:#050510!important;font-weight:800!important}
+  .layer-grid,.scenario-cards-4,.scenario-cards,.sw-grid,.sc-ww-row,.plan-states{display:block!important}
+  .layer-card,.scenario-card,.sw-item,.sc-ww-box,.plan-state{margin-bottom:8px!important}
+  .sw-strength{background:#b6efd0!important;border:2px solid #1a9e55!important}
+  .sw-strength .sw-title{color:#063d1a!important;font-weight:700!important}
+  .sw-weakness{background:#fac8c8!important;border:2px solid #c0392b!important}
+  .sw-weakness .sw-title{color:#6e0a0a!important;font-weight:700!important}
+  .sc-worked{background:#b6efd0!important;border:2px solid #1a9e55!important}
+  .sc-worked .sc-ww-label{color:#063d1a!important;font-weight:700!important}
+  .sc-didnt{background:#fac8c8!important;border:2px solid #c0392b!important}
+  .sc-didnt .sc-ww-label{color:#6e0a0a!important;font-weight:700!important}
+  .priority-high{background:#fac8c8!important;color:#6e0a0a!important;border:2px solid #c0392b!important}
+  .priority-medium{background:#fdeeb0!important;color:#5a3800!important;border:2px solid #c49a00!important}
+  .priority-low{background:#b6efd0!important;color:#063d1a!important;border:2px solid #1a9e55!important}
+  .state-now{background:#fac8c8!important;border:2px solid #c0392b!important}
+  .state-now .ps-label{color:#6e0a0a!important;font-weight:700!important}
+  .state-target{background:#b6efd0!important;border:2px solid #1a9e55!important}
+  .state-target .ps-label{color:#063d1a!important;font-weight:700!important}
+  .training-loop{background:#d4d0ff!important;border:2px solid #4030d0!important;color:#050510!important}
+  .tl-label{color:#1808a0!important;font-weight:700!important}
+  .bar-track{background:#b8bcd4!important;height:7px!important}
+  .ring-bg{stroke:#a8acc4!important}
+  .plan-steps li::before,.layer-list.improve li::before{color:#1808a0!important}
+  .layer-list.worked li::before{color:#0a6b30!important}
+  .layer-list.didnt li::before{color:#9b0f0f!important}
+  /* moment analysis */
+  .moment-item{background:#fff!important;border:2px solid #c0392b!important;border-left:5px solid #c0392b!important;border-radius:8px!important;padding:12px 14px!important;margin-bottom:12px!important;page-break-inside:avoid!important;break-inside:avoid!important}
+  .moment-ts{background:#c0392b!important;color:#fff!important;font-size:.7rem!important;font-weight:700!important;padding:2px 8px!important;border-radius:20px!important;display:inline-block!important}
+  .moment-emotion{background:#fde8cc!important;color:#7a3d00!important;font-size:.7rem!important;font-weight:700!important;padding:2px 8px!important;border-radius:20px!important;display:inline-block!important;border:1px solid #e8a050!important;margin-left:5px!important}
+  .moment-said{background:#f5f5f8!important;border-left:3px solid #b0b4cc!important;padding:6px 9px!important;font-style:italic!important;font-size:.82rem!important;color:#050510!important;margin:6px 0!important;border-radius:4px!important}
+  .moment-label{font-size:.66rem!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:.5px!important;margin-bottom:2px!important;margin-top:7px!important}
+  .moment-why{color:#7a0f0f!important;font-size:.8rem!important;font-weight:500!important;line-height:1.55!important}
+  .moment-better{background:#d4f5e5!important;border:1.5px solid #1a9e55!important;border-radius:6px!important;padding:8px 10px!important;font-size:.8rem!important;color:#063d1a!important;font-weight:500!important;line-height:1.55!important}
+  .moment-tag{background:#e8e4ff!important;color:#2010a8!important;border:1px solid #a098e0!important;font-size:.66rem!important;font-weight:700!important;padding:2px 7px!important;border-radius:12px!important;display:inline-block!important;margin-right:4px!important}
+  .moment-scenarios{display:flex!important;flex-wrap:wrap!important;gap:4px!important;margin-top:6px!important}
+} /* end @media print */
+
+/* ─── Context Section ─── */
+#context-section{width:100%;max-width:600px;margin:20px auto 0;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px 32px;box-shadow:var(--shadow)}
+#context-section h3{font-size:1rem;font-weight:700;color:var(--white);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+#context-section .ctx-sub{color:var(--muted);font-size:.82rem;margin-bottom:20px}
+.ctx-block{margin-bottom:22px}
+.ctx-label{font-size:.82rem;font-weight:600;color:var(--accent2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ctx-textarea{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:.85rem;padding:10px 14px;resize:vertical;min-height:72px;transition:.2s;outline:none}
+.ctx-textarea:focus{border-color:var(--accent)}
+.ctx-file-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.ctx-file-btn{padding:6px 16px;font-size:.78rem;font-weight:600;background:var(--card2);border:1px solid var(--border);color:var(--accent2);border-radius:8px;cursor:pointer;transition:.2s}
+.ctx-file-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ctx-file-name{font-size:.78rem;color:var(--green);min-height:18px}
+.ctx-hint{font-size:.74rem;color:var(--muted);margin-top:4px}
+
+/* ─── 3-Layer Analysis ─── */
+.layer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:4px}
+@media(max-width:720px){.layer-grid{grid-template-columns:1fr}}
+.layer-card{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:22px 20px}
+.layer-card .lc-icon{font-size:1.8rem;margin-bottom:6px}
+.layer-card .lc-title{font-size:.88rem;font-weight:700;color:var(--white);margin-bottom:4px}
+.layer-card .lc-score{font-size:1.5rem;font-weight:800;margin-bottom:10px}
+.layer-card .lc-summary{font-size:.82rem;color:#c8cce0;line-height:1.6;margin-bottom:12px}
+.layer-sub{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px}
+.layer-list{list-style:none;padding:0}
+.layer-list li{font-size:.81rem;color:var(--text);padding:3px 0 3px 18px;position:relative;line-height:1.45}
+.layer-list.worked li::before{content:'✓';position:absolute;left:0;color:var(--green);font-weight:700}
+.layer-list.didnt li::before{content:'✗';position:absolute;left:0;color:var(--red);font-weight:700}
+.layer-list.improve li::before{content:'→';position:absolute;left:0;color:var(--accent2);font-weight:700}
+
+/* ─── 4-Scenario grid ─── */
+.scenario-cards-4{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+@media(max-width:680px){.scenario-cards-4{grid-template-columns:1fr}}
+.sc-ww-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 6px;text-align:left}
+.sc-ww-box{font-size:.78rem;padding:8px 10px;border-radius:8px;line-height:1.5}
+.sc-ww-box .sc-ww-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.sc-worked{background:var(--greenBg);border:1px solid var(--greenBorder)}
+.sc-worked .sc-ww-label{color:var(--green)}
+.sc-didnt{background:var(--redBg);border:1px solid var(--redBorder)}
+.sc-didnt .sc-ww-label{color:var(--red)}
+
+/* ─── Coach Verdict ─── */
+.coach-verdict{background:linear-gradient(135deg,rgba(124,106,246,.15),rgba(124,106,246,.06));border:1px solid rgba(124,106,246,.35);border-radius:14px;padding:20px 26px;text-align:center}
+.coach-verdict .cv-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent2);margin-bottom:8px}
+.coach-verdict .cv-text{font-size:1.05rem;font-weight:700;color:var(--white);line-height:1.6}
+
+/* ─── Training Loop tag ─── */
+.training-loop{background:rgba(124,106,246,.10);border:1px solid rgba(124,106,246,.2);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:.8rem;color:var(--accent2);line-height:1.5}
+.training-loop .tl-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--accent);margin-bottom:3px}
+/* ─── Moment Analysis ─── */
+.moment-item{background:var(--card2);border:1px solid var(--border);border-left:4px solid var(--red);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.moment-ts{display:inline-block;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;margin-bottom:8px;letter-spacing:.4px}
+.moment-emotion{display:inline-block;background:rgba(251,146,60,.15);color:var(--orange);font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;margin-left:6px;border:1px solid var(--orangeBorder)}
+.moment-said{font-size:.85rem;color:var(--text);font-style:italic;margin:8px 0 4px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid var(--border)}
+.moment-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.moment-why{color:var(--red);font-size:.82rem;line-height:1.55;margin-bottom:8px}
+.moment-better{background:rgba(45,212,168,.08);border:1px solid rgba(45,212,168,.2);border-radius:8px;padding:10px 12px;font-size:.82rem;color:var(--green);line-height:1.6}
+.moment-scenarios{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.moment-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:12px;background:rgba(124,106,246,.15);color:var(--accent2);border:1px solid rgba(124,106,246,.25)}
+</style>
+</head>
+<body>
+
+<!-- ═══ STICKY MODE SWITCHER ═══ -->
+<nav id="mode-nav">
+  <button class="mode-btn active" id="btn-video" onclick="switchMode('video')">🎦 Video Analysis</button>
+  <button class="mode-btn" id="btn-twin" onclick="switchMode('twin')">🤖 Digital Twin</button>
+</nav>
+
+<div id="mode-video">
+<header>
+  <h1>🧠 Your Personal <span class="ai">AI Behaviour Counsellor</span></h1>
+  <p>Upload a video of yourself — our AI will analyse your facial expressions, body language &amp; speech, then give you personalised coaching to help you succeed.</p>
+</header>
+
+<!-- ═══ UPLOAD ═══ -->
+<div id="upload-section">
+  <div class="drop-zone" id="drop-zone">
+    <div class="icon">🎦</div>
+    <p>Drag &amp; drop your video here<br>or <strong>click to browse</strong></p>
+    <p style="margin-top:10px;font-size:.76rem;color:var(--muted)">MP4 · AVI · MOV · MKV · WEBM — up to 500 MB</p>
+    <input type="file" id="file-input" accept="video/*">
+  </div>
+  <div id="file-name"></div>
+  <button id="analyze-btn" disabled>🔍 Start Counselling Session</button>
+</div>
+
+<!-- ═══ CONTEXT INPUT ═══ -->
+<div id="context-section">
+  <h3>🎯 Personalise Your Analysis <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:6px">(optional)</span></h3>
+  <p class="ctx-sub">Add context so the AI tailors advice specifically to your situation. Upload a PDF/DOC or type below.</p>
+
+  <div class="ctx-block">
+    <div class="ctx-label">💼 Job Description</div>
+    <textarea id="ctx-job" class="ctx-textarea" placeholder="Paste the job description or role you're targeting for promotion..."></textarea>
+    <div class="ctx-file-row">
+      <button class="ctx-file-btn" onclick="triggerCtxFile('job')">+ Upload PDF/DOC</button>
+      <span id="ctx-job-fname" class="ctx-file-name"></span>
+      <input type="file" id="ctx-file-job" accept=".pdf,.doc,.docx,.txt" style="display:none" onchange="handleCtxFile('job',this)">
+    </div>
+    <div class="ctx-hint">Used to tailor advice for “Getting Promoted”</div>
+  </div>
+
+  <div class="ctx-block">
+    <div class="ctx-label">💡 Business Idea / Deal Context</div>
+    <textarea id="ctx-biz" class="ctx-textarea" placeholder="Describe your business idea, pitch or the deal you're trying to close..."></textarea>
+    <div class="ctx-file-row">
+      <button class="ctx-file-btn" onclick="triggerCtxFile('business')">+ Upload PDF/DOC</button>
+      <span id="ctx-business-fname" class="ctx-file-name"></span>
+      <input type="file" id="ctx-file-business" accept=".pdf,.doc,.docx,.txt" style="display:none" onchange="handleCtxFile('business',this)">
+    </div>
+    <div class="ctx-hint">Used to tailor advice for “Closing a Deal”</div>
+  </div>
+
+  <div class="ctx-block" style="margin-bottom:0">
+    <div class="ctx-label">❤️ Date Partner Description</div>
+    <textarea id="ctx-date" class="ctx-textarea" placeholder="Describe the person you're going on a date with — their personality, interests, what they value..."></textarea>
+    <div class="ctx-file-row">
+      <button class="ctx-file-btn" onclick="triggerCtxFile('date')">+ Upload PDF/DOC</button>
+      <span id="ctx-date-fname" class="ctx-file-name"></span>
+      <input type="file" id="ctx-file-date" accept=".pdf,.doc,.docx,.txt" style="display:none" onchange="handleCtxFile('date',this)">
+    </div>
+    <div class="ctx-hint">Used to tailor advice for “Going on a Date”</div>
+  </div>
+</div>
+
+<!-- ═══ PROGRESS ═══ -->
+<div id="progress-section" class="hidden">
+  <div class="spinner"></div>
+  <div id="progress-text">Starting analysis…</div>
+  <div id="progress-sub">Our AI counsellor is studying your video — this takes 1–2 minutes</div>
+</div>
+
+<!-- ═══ RESULTS ═══ -->
+<div id="results-section" class="hidden"></div>
+
+<footer>AI Behaviour Counsellor — Powered by Gemini AI · DeepFace · MediaPipe · Librosa</footer>
+
+<script>
+const dropZone=document.getElementById('drop-zone'),fileInput=document.getElementById('file-input'),
+      fileNameEl=document.getElementById('file-name'),analyzeBtn=document.getElementById('analyze-btn'),
+      uploadSec=document.getElementById('upload-section'),progressSec=document.getElementById('progress-section'),
+      progressText=document.getElementById('progress-text'),progressSub=document.getElementById('progress-sub'),
+      resultsSec=document.getElementById('results-section'),
+      ctxSec=document.getElementById('context-section');
+let selectedFile=null, currentJobId=null;
+// Per-type pending file uploads (stored for after job init)
+const pendingCtxFiles={};
+
+/* ─── Context file helpers ─── */
+function triggerCtxFile(type){document.getElementById('ctx-file-'+type).click()}
+function handleCtxFile(type,inp){
+  if(!inp.files.length)return;
+  const f=inp.files[0];
+  pendingCtxFiles[type]=f;
+  document.getElementById('ctx-'+type+'-fname').textContent='📎 '+f.name;
+}
+
+/* ─── Video pick ─── */
+dropZone.addEventListener('click',()=>fileInput.click());
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');if(e.dataTransfer.files.length)pickFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',()=>{if(fileInput.files.length)pickFile(fileInput.files[0])});
+function pickFile(f){selectedFile=f;fileNameEl.textContent=`📁 ${f.name}  (${(f.size/1024/1024).toFixed(1)} MB)`;analyzeBtn.disabled=false}
+
+/* ─── Main flow ─── */
+analyzeBtn.addEventListener('click',async()=>{
+  if(!selectedFile)return;
+  analyzeBtn.disabled=true;
+  uploadSec.classList.add('hidden');
+  ctxSec.classList.add('hidden');
+  progressSec.classList.remove('hidden');
+  resultsSec.classList.add('hidden');
+  resultsSec.innerHTML='';
+  progressText.textContent='Initialising session…';
+
+  try{
+    // 1) Init job to get an ID before upload
+    const initRes=await fetch('/init-job',{method:'POST'});
+    const initData=await initRes.json();
+    if(initData.error){showErr(initData.error);return;}
+    currentJobId=initData.job_id;
+
+    // 2) Save text context
+    const ctxBody={
+      job_id:currentJobId,
+      job_description:document.getElementById('ctx-job').value,
+      business_idea:document.getElementById('ctx-biz').value,
+      date_partner:document.getElementById('ctx-date').value
+    };
+    await fetch('/save-context',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ctxBody)});
+
+    // 3) Upload pending doc files
+    for(const[type,file] of Object.entries(pendingCtxFiles)){
+      const fd=new FormData();
+      fd.append('job_id',currentJobId);
+      fd.append('context_type',type);
+      fd.append('file',file);
+      await fetch('/upload-context-file',{method:'POST',body:fd});
+    }
+
+    // 4) Upload video
+    progressText.textContent='Uploading video…';
+    const fd=new FormData();
+    fd.append('video',selectedFile);
+    fd.append('job_id',currentJobId);
+    const res=await fetch('/upload',{method:'POST',body:fd});
+    const d=await res.json();
+    if(d.error){showErr(d.error);return;}
+    poll(d.job_id);
+  }catch(e){showErr(e.message)}
+});
+
+function poll(id){const iv=setInterval(async()=>{
+  try{const r=await fetch(`/status/${id}`);const d=await r.json();progressText.textContent=d.progress||'Processing…';
+  if(d.status==='done'){clearInterval(iv);const rr=await fetch(`/results/${id}`);render(await rr.json())}
+  else if(d.status==='error'){clearInterval(iv);showErr(d.progress)}}catch(e){clearInterval(iv);showErr(e.message)}},1400)}
+
+function showErr(m){progressSec.classList.add('hidden');uploadSec.classList.remove('hidden');ctxSec.classList.remove('hidden');analyzeBtn.disabled=false;alert('❌ '+m)}
+
+/* ═══════════════════════ RENDER ═══════════════════════ */
+function render(R){
+  progressSec.classList.add('hidden');resultsSec.classList.remove('hidden');resultsSec.innerHTML='';
+  const C=R.counselling||{};const pred=R.final_predictions||{};
+  const tla=C.three_layer_analysis||{};
+
+  /* 1 ─── Counsellor Banner ─── */
+  resultsSec.insertAdjacentHTML('beforeend',`
+  <div class="counsellor-banner slide-up">
+    <h2>🧠 Your AI Communication Coach's Report</h2>
+    <div class="subtitle">Powered by Gemini AI — personalised just for you</div>
+    <div class="summary">${esc(C.overall_summary||'Analysis complete. See your detailed results below.')}</div>
+    ${C.personality_snapshot?`<div class="personality">${esc(C.personality_snapshot)}</div>`:''}
+  </div>`);
+
+  /* 2 ─── Coach Verdict ─── */
+  if(C.coach_verdict){
+    resultsSec.insertAdjacentHTML('beforeend',`
+    <div class="coach-verdict slide-up">
+      <div class="cv-label">⚡ Coach's #1 Priority for You</div>
+      <div class="cv-text">${esc(C.coach_verdict)}</div>
+    </div>`);
+  }
+
+  /* 3 ─── 3-Layer Analysis ─── */
+  const layers=[
+    {key:'verbal_intelligence',icon:'🗣️',title:'Verbal Intelligence',sub:'Clarity · Tone · Persuasion · Structure'},
+    {key:'non_verbal_intelligence',icon:'👁️',title:'Non-Verbal Intelligence',sub:'Micro-Expressions · Facial Cues · Eye Movement'},
+    {key:'behavioral_signals',icon:'🤲',title:'Behavioral Signals',sub:'Gestures · Body Language · Confidence Markers'}
+  ];
+  let layerHTML='<div class="card slide-up"><h2>🔬 3-Layer Communication Analysis</h2><div class="layer-grid">';
+  layers.forEach(l=>{
+    const d=tla[l.key]||{};
+    const score=d.score||0;
+    const col=score>=70?'var(--green)':score>=50?'var(--yellow)':'var(--red)';
+    const worked=(d.what_worked||[]);const didnt=(d.what_didnt||[]);const impr=(d.improvements||[]);
+    layerHTML+=`<div class="layer-card">
+      <div class="lc-icon">${l.icon}</div>
+      <div class="lc-title">${l.title}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">${l.sub}</div>
+      <div class="lc-score" style="color:${col}">${score}/100</div>
+      <div class="lc-summary">${esc(d.summary||'')}</div>
+      ${worked.length?`<div class="layer-sub" style="color:var(--green)">✓ What Worked</div><ul class="layer-list worked">${worked.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+      ${didnt.length?`<div class="layer-sub" style="color:var(--red)">✗ What Didn't</div><ul class="layer-list didnt">${didnt.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+      ${impr.length?`<div class="layer-sub" style="color:var(--accent2)">→ Improvements</div><ul class="layer-list improve">${impr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+    </div>`;
+  });
+  layerHTML+='</div></div>';
+  resultsSec.insertAdjacentHTML('beforeend',layerHTML);
+
+  /* 4 ─── Strengths & Weaknesses ─── */
+  const strengths=C.strengths||[];const weaknesses=C.weaknesses||[];
+  let swHTML='<div class="card slide-up"><h2>💡 Your Strengths &amp; Weaknesses</h2>';
+  if(strengths.length){
+    swHTML+='<h3 style="color:var(--green)">✅ Strengths</h3><div class="sw-grid">';
+    strengths.forEach(s=>swHTML+=`<div class="sw-item sw-strength"><div class="sw-title">💪 ${esc(s.title)}</div><div class="sw-detail">${esc(s.detail)}</div></div>`);
+    swHTML+='</div>';
+  }
+  if(weaknesses.length){
+    swHTML+='<h3 style="color:var(--red);margin-top:24px">⚠️ Areas of Weakness</h3><div class="sw-grid">';
+    weaknesses.forEach(w=>swHTML+=`<div class="sw-item sw-weakness"><div class="sw-title">🔍 ${esc(w.title)}</div><div class="sw-detail">${esc(w.detail)}</div></div>`);
+    swHTML+='</div>';
+  }
+  swHTML+='</div>';
+  resultsSec.insertAdjacentHTML('beforeend',swHTML);
+
+  /* 5 ─── 4 NEW Scenario Predictions ─── */
+  const newScenarios=[
+    {key:'closing_deal',     emoji:'🤝', label:'Closing a Deal'},
+    {key:'getting_promoted', emoji:'📈', label:'Getting Promoted'},
+    {key:'delivering_presentation', emoji:'🎤', label:'Delivering a Presentation'},
+    {key:'going_on_date',    emoji:'❤️', label:'Going on a Date'}
+  ];
+  const cs=C.scenarios||{};
+  let scHTML='<div class="card slide-up"><h2>🎯 Your Success Probabilities</h2>';
+
+  // NEW 4-scenario grid
+  if(Object.keys(cs).some(k=>['closing_deal','getting_promoted','delivering_presentation','going_on_date'].includes(k))){
+    scHTML+='<div class="scenario-cards-4">';
+    newScenarios.forEach(s=>{
+      const d=cs[s.key]||{};
+      const prob=d.probability!=null?d.probability:50;
+      const verdict=d.verdict||(prob>=70?'Strong chance!':prob>=50?'Decent odds':'Needs work');
+      const color=prob>=70?'var(--green)':prob>=50?'var(--yellow)':'var(--red)';
+      const circ=2*Math.PI*48;const off=circ-(prob/100)*circ;
+      scHTML+=`<div class="scenario-card">
+        <div class="sc-emoji">${s.emoji}</div>
+        <div class="sc-label">${s.label}</div>
+        <div class="ring-wrap">
+          <svg width="110" height="110" viewBox="0 0 110 110">
+            <circle class="ring-bg" cx="55" cy="55" r="48"/>
+            <circle class="ring-fg" cx="55" cy="55" r="48" stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/>
+          </svg>
+          <div class="ring-text" style="color:${color}">${Math.round(prob)}%</div>
+        </div>
+        <div class="sc-verdict" style="color:${color}">${esc(verdict)}</div>
+        ${(d.what_worked||d.what_didnt)?`<div class="sc-ww-row">
+          ${d.what_worked?`<div class="sc-ww-box sc-worked"><div class="sc-ww-label">✓ What Worked</div>${esc(d.what_worked)}</div>`:''}
+          ${d.what_didnt?`<div class="sc-ww-box sc-didnt"><div class="sc-ww-label">✗ What Didn't</div>${esc(d.what_didnt)}</div>`:''}
+        </div>`:''}
+        ${d.coaching_advice?`<div class="sc-advice">${esc(d.coaching_advice)}</div>`:''}
+      </div>`;
+    });
+    scHTML+='</div>';
+  } else {
+    // Fallback: old 3-scenario grid (backward compat)
+    const oldScenarios=[
+      {key:'job_interview',emoji:'💼',label:'Cracking a Job'},
+      {key:'business_deal',emoji:'🤝',label:'Getting a Business Deal'},
+      {key:'date',emoji:'❤️',label:'Going on a Date'}];
+    scHTML+='<div class="scenario-cards">';
+    oldScenarios.forEach(s=>{
+      const gemini=cs[s.key]||{};const computed=pred[s.key]||{};
+      const prob=gemini.probability!=null?gemini.probability:(computed.probability||50);
+      const verdict=gemini.verdict||(prob>=70?'Strong chance!':prob>=50?'Decent odds':'Needs work');
+      const advice=gemini.detailed_advice||'';
+      const color=prob>=70?'var(--green)':prob>=50?'var(--yellow)':'var(--red)';
+      const circ=2*Math.PI*48;const off=circ-(prob/100)*circ;
+      scHTML+=`<div class="scenario-card">
+        <div class="sc-emoji">${s.emoji}</div>
+        <div class="sc-label">${s.label}</div>
+        <div class="ring-wrap">
+          <svg width="110" height="110" viewBox="0 0 110 110">
+            <circle class="ring-bg" cx="55" cy="55" r="48"/>
+            <circle class="ring-fg" cx="55" cy="55" r="48" stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/>
+          </svg>
+          <div class="ring-text" style="color:${color}">${Math.round(prob)}%</div>
+        </div>
+        <div class="sc-verdict" style="color:${color}">${esc(verdict)}</div>
+        ${advice?`<div class="sc-advice">${esc(advice)}</div>`:''}
+      </div>`;
+    });
+    scHTML+='</div>';
+  }
+  scHTML+='</div>';
+  resultsSec.insertAdjacentHTML('beforeend',scHTML);
+
+  /* 6 ─── Detailed Score Breakdown (existing) ─── */
+  const components=[
+    {key:'facial_expression',label:'😊 Facial Expression'},
+    {key:'body_language',label:'🧍 Body Language'},
+    {key:'voice_tone',label:'🎤 Voice Tone'},
+    {key:'speech_clarity',label:'💬 Speech Clarity'},
+    {key:'confidence',label:'💪 Confidence'}];
+  const legacyScenarios=[
+    {key:'job_interview',emoji:'💼',label:'Job Interview'},
+    {key:'business_deal',emoji:'🤝',label:'Business Deal'},
+    {key:'date',emoji:'❤️',label:'Date'}];
+  let barHTML='<div class="card slide-up"><h2>📊 Detailed Score Breakdown</h2>';
+  legacyScenarios.forEach(s=>{
+    const bd=(pred[s.key]||{}).breakdown||{};
+    barHTML+=`<h3>${s.emoji} ${s.label}</h3>`;
+    components.forEach(c=>{
+      const v=bd[c.key]||0;const col=v>=65?'var(--green)':v>=45?'var(--yellow)':'var(--red)';
+      barHTML+=`<div class="bar-group"><div class="bar-label"><span>${c.label}</span><span style="color:${col}">${v.toFixed(1)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${v}%;background:${col}"></div></div></div>`;
+    });
+  });
+  barHTML+='</div>';
+  resultsSec.insertAdjacentHTML('beforeend',barHTML);
+
+  /* 7 ─── Improvement Plan (with training loops) ─── */
+  const plan=C.improvement_plan||[];
+  if(plan.length){
+    let planHTML='<div class="card slide-up"><h2>🗺️ Your Personal Improvement Plan</h2>';
+    plan.forEach(p=>{
+      const pc=p.priority==='high'?'priority-high':p.priority==='low'?'priority-low':'priority-medium';
+      planHTML+=`<div class="plan-item">
+        <div class="plan-header"><span class="plan-area">${esc(p.area)}</span><span class="plan-priority ${pc}">${p.priority} priority</span></div>
+        <div class="plan-states">
+          <div class="plan-state state-now"><div class="ps-label">📍 Where you are now</div>${esc(p.current_state||'')}</div>
+          <div class="plan-state state-target"><div class="ps-label">🎯 Where you should be</div>${esc(p.target_state||'')}</div>
+        </div>
+        <ul class="plan-steps">${(p.action_steps||[]).map(a=>`<li>${esc(a)}</li>`).join('')}</ul>
+        ${p.training_loop?`<div class="training-loop"><div class="tl-label">🔁 Repeatable Training Loop</div>${esc(p.training_loop)}</div>`:''}
+      </div>`;
+    });
+    planHTML+='</div>';
+    resultsSec.insertAdjacentHTML('beforeend',planHTML);
+  }
+
+  /* 7.5 ─── Moment-by-Moment Analysis ─── */
+  const moments=C.moment_analysis||[];
+  if(moments.length){
+    const scenarioLabels={
+      closing_deal:'🤝 Deal',getting_promoted:'📈 Promotion',
+      delivering_presentation:'🎤 Presentation',going_on_date:'❤️ Date'
+    };
+    let mHTML='<div class="card slide-up"><h2>🎯 Key Moments: Where Your Expressions Were Off</h2>';
+    mHTML+='<p style="color:var(--muted);font-size:.84rem;margin-bottom:16px">Specific timestamps where your facial expression or body language was misaligned — and exactly how to fix each one.</p>';
+    moments.forEach(m=>{
+      const scTags=(m.scenario_relevance||[]).map(s=>`<span class="moment-tag">${scenarioLabels[s]||s}</span>`).join('');
+      mHTML+=`<div class="moment-item">
+        <span class="moment-ts">⏱ ${esc(m.timestamp||'?')}</span>
+        <span class="moment-emotion">${esc(m.emotion_detected||'')}</span>
+        ${m.what_was_said?`<div class="moment-said">&ldquo;${esc(m.what_was_said)}&rdquo;</div>`:''}
+        <div class="moment-label" style="color:var(--red)">Why it's off:</div>
+        <div class="moment-why">${esc(m.why_its_off||'')}</div>
+        <div class="moment-label" style="color:var(--green)">How to deliver it better:</div>
+        <div class="moment-better">${esc(m.better_delivery||'')}</div>
+        ${scTags?`<div class="moment-scenarios">${scTags}</div>`:''}
+      </div>`;
+    });
+    mHTML+='</div>';
+    resultsSec.insertAdjacentHTML('beforeend',mHTML);
+  }
+
+  /* 8 ─── Closing Message ─── */
+  if(C.closing_message){
+    resultsSec.insertAdjacentHTML('beforeend',`<div class="closing-box slide-up">💬 ${esc(C.closing_message)}</div>`);
+  }
+
+  /* 9 ─── Export / Reset buttons ─── */
+  resultsSec.insertAdjacentHTML('beforeend',`
+  <div style="text-align:center;margin-top:4px;display:flex;justify-content:center;gap:15px;" class="slide-up">
+    <button onclick="exportToPDF()" style="padding:13px 40px;font-size:.92rem;font-weight:600;background:var(--accent);border:none;color:white;border-radius:12px;cursor:pointer;transition:.2s">📄 Export to PDF</button>
+    <button onclick="resetUI()" style="padding:13px 40px;font-size:.92rem;font-weight:600;background:var(--card);border:1px solid var(--border);color:var(--accent2);border-radius:12px;cursor:pointer;transition:.2s">🔄 Analyse Another Video</button>
+  </div>`);
+}
+
+function exportToPDF(){
+  // Native browser print — @media print CSS handles light-theme overrides.
+  // In the print dialog, select "Save as PDF" as destination.
+  window.print();
+}
+
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';}
+
+function resetUI(){
+  selectedFile=null;fileInput.value='';fileNameEl.textContent='';
+  analyzeBtn.disabled=true;resultsSec.classList.add('hidden');resultsSec.innerHTML='';
+  uploadSec.classList.remove('hidden');ctxSec.classList.remove('hidden');
+  // clear context fields
+  document.getElementById('ctx-job').value='';
+  document.getElementById('ctx-biz').value='';
+  document.getElementById('ctx-date').value='';
+  ['job','business','date'].forEach(t=>{
+    document.getElementById('ctx-'+t+'-fname').textContent='';
+    document.getElementById('ctx-file-'+t).value='';
+    delete pendingCtxFiles[t];
+  });
+  currentJobId=null;
+}
+</script>
+
+<!-- ════════════════════════════════════════════════════════════
+     DIGITAL TWIN SECTION
+     ════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Twin section styles ── */
+#twin-section{width:100%;max-width:960px;margin:40px auto 64px;padding:0 12px}
+.twin-header{background:linear-gradient(135deg,rgba(124,106,246,.14),rgba(45,212,168,.07));border:1px solid rgba(124,106,246,.28);border-radius:16px;padding:32px;text-align:center;margin-bottom:28px}
+.twin-header h2{font-size:1.5rem;font-weight:800;color:#f0f2f8;margin-bottom:8px}
+.twin-header p{color:#7c6af6;font-size:.93rem}
+.twin-tabs{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+.twin-tab{padding:10px 22px;border-radius:10px;border:1px solid #252a3a;background:#13161f;color:#7a809a;cursor:pointer;font-size:.88rem;font-weight:600;transition:.2s}
+.twin-tab.active,.twin-tab:hover{background:#7c6af6;color:#fff;border-color:#7c6af6}
+.twin-panel{display:none}.twin-panel.active{display:block}
+
+/* Auth form */
+.auth-card{background:#13161f;border:1px solid #252a3a;border-radius:16px;padding:32px;max-width:420px;margin:0 auto}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:.83rem;font-weight:600;color:#a0a5bb;margin-bottom:6px}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:11px 14px;background:#0b0d13;border:1px solid #252a3a;border-radius:10px;color:#d1d5e0;font-size:.9rem;outline:none;transition:.2s}
+.form-group input:focus,.form-group textarea:focus{border-color:#7c6af6}
+.form-group textarea{resize:vertical;min-height:80px}
+.btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,#7c6af6,#9585ff);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.2s;margin-top:8px}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,106,246,.35)}
+.btn-outline{padding:10px 22px;background:transparent;border:1px solid #7c6af6;color:#a599ff;border-radius:10px;cursor:pointer;font-size:.88rem;font-weight:600;transition:.2s}
+.btn-outline:hover{background:rgba(124,106,246,.12)}
+.auth-msg{font-size:.82rem;margin-top:12px;text-align:center;min-height:20px}
+.auth-msg.ok{color:#2dd4a8}.auth-msg.err{color:#f87171}
+.twin-token{display:none;background:#0b0d13;border:1px solid #2dd4a8;border-radius:8px;padding:10px 14px;font-size:.78rem;color:#2dd4a8;word-break:break-all;margin-top:14px}
+
+/* Questionnaire */
+.q-section{margin-bottom:28px}
+.q-section h3{font-size:1rem;font-weight:700;color:#a599ff;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid #252a3a}
+.q-section .q-sub{font-size:.8rem;color:#7a809a;margin-bottom:14px}
+.q-item{margin-bottom:16px;background:#13161f;padding:16px 18px;border-radius:12px;border:1px solid #252a3a}
+.q-item label{font-size:.87rem;font-weight:600;color:#d1d5e0;display:block;margin-bottom:10px;line-height:1.55}
+.q-item textarea,.q-item input[type=text]{width:100%;padding:11px 14px;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;font-family:inherit;resize:vertical;outline:none;transition:.2s;min-height:80px}
+.q-item textarea:focus,.q-item input[type=text]:focus{border-color:#7c6af6;box-shadow:0 0 0 3px rgba(124,106,246,.12)}
+.q-scale-wrap{display:flex;flex-direction:column;gap:8px}
+.q-scale-labels{display:flex;justify-content:space-between;font-size:.72rem;color:#7a809a;padding:0 2px}
+.q-scale{display:flex;gap:5px;flex-wrap:nowrap}
+.q-scale button{flex:1;padding:8px 2px;border-radius:7px;border:1px solid #252a3a;background:#0b0d13;color:#7a809a;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s;min-width:0}
+.q-scale button.sel,.q-scale button:hover{background:#7c6af6;color:#fff;border-color:#7c6af6}
+.q-chips{display:flex;gap:7px;flex-wrap:wrap}
+.q-chips button{padding:7px 13px;border-radius:20px;border:1px solid #2a3045;background:#0b0d13;color:#a0a5bb;cursor:pointer;font-size:.82rem;transition:.2s;line-height:1.3}
+.q-chips button.sel{background:rgba(124,106,246,.18);color:#a599ff;border-color:#7c6af6}
+.q-chips button:hover{border-color:#7c6af6;color:#c8cbff}
+.q-section-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.q-section-icon{font-size:1.4rem}
+.q-progress{background:#13161f;border:1px solid #252a3a;border-radius:8px;padding:8px 16px;font-size:.82rem;color:#7a809a;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center}
+.q-progress span{color:#7c6af6;font-weight:700;font-size:.95rem}
+
+/* Simulation */
+.sim-bar-outer{background:#13161f;border-radius:50px;height:18px;border:1px solid #252a3a;overflow:hidden;margin:10px 0}
+.sim-bar-inner{height:100%;border-radius:50px;background:linear-gradient(90deg,#7c6af6,#2dd4a8);transition:width .4s ease;width:0%}
+/* Live chat bubbles */
+.sim-bubble{max-width:78%;padding:10px 14px;border-radius:14px;font-size:.85rem;line-height:1.55;word-break:break-word;animation:bubbleIn .35s ease}
+.sim-bubble.twin{background:#1e2045;color:#d1d5e0;border-bottom-left-radius:4px}
+.sim-bubble.agent{background:#0d2620;color:#a8f0d8;border-bottom-right-radius:4px}
+.sim-bubble-wrap{display:flex;flex-direction:column;gap:3px}
+.sim-bubble-wrap.twin{align-items:flex-start}
+.sim-bubble-wrap.agent{align-items:flex-end}
+.sim-bubble-label{font-size:.7rem;font-weight:700;letter-spacing:.05em;margin-bottom:2px}
+.sim-bubble-label.twin{color:#7c6af6}
+.sim-bubble-label.agent{color:#2dd4a8}
+@keyframes bubbleIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.sim-stat{background:#0b0d13;border:1px solid #252a3a;border-radius:10px;padding:16px;text-align:center}
+.sim-stat .val{font-size:1.6rem;font-weight:800;color:#a599ff}
+.sim-stat .lbl{font-size:.78rem;color:#7a809a;margin-top:4px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:16px}
+/* Scenario browser */
+.scen-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.scen-tab-btn{background:#13161f;border:1px solid #2a3045;color:#8890b0;border-radius:20px;padding:5px 14px;font-size:.78rem;font-weight:600;cursor:pointer;transition:.2s;white-space:nowrap}
+.scen-tab-btn.active{background:#7c6af6;border-color:#7c6af6;color:#fff}
+.scen-tab-btn.success{border-color:#2dd4a8;color:#2dd4a8}
+.scen-tab-btn.failure{border-color:#f87171;color:#f87171}
+.scen-tab-btn.partial{border-color:#f59e0b;color:#f59e0b}
+.scen-tab-btn.active.success,.scen-tab-btn.active.failure,.scen-tab-btn.active.partial{color:#fff}
+.scen-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#13161f;border:1px solid #2a3045;border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.scen-badge{background:#7c6af6;color:#fff;font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:16px;letter-spacing:.04em;white-space:nowrap}
+.scen-name{color:#d1d5e0;font-size:.9rem;font-weight:600}
+.scen-cat{color:#2dd4a8;font-size:.76rem;font-weight:600;margin-left:auto;background:rgba(45,212,168,.1);padding:3px 10px;border-radius:10px;white-space:nowrap}
+.scen-score-pill{font-size:.8rem;font-weight:700;padding:4px 14px;border-radius:16px;border:2px solid;white-space:nowrap}
+.chat-box{background:#0d0f18;border:1px solid #1e2435;border-radius:14px;padding:18px 16px;min-height:180px;max-height:520px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+
+/* Results / clusters */
+.cluster-card{background:#0b0d13;border:1px solid #252a3a;border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.cluster-card .c-name{font-weight:700;font-size:.95rem;color:#f0f2f8;margin-bottom:6px}
+.cluster-card .c-freq{display:inline-block;padding:3px 10px;border-radius:20px;background:rgba(248,113,113,.12);color:#f87171;font-size:.78rem;font-weight:700;margin-bottom:8px}
+.cluster-card .c-desc{font-size:.84rem;color:#a0a5bb;line-height:1.65;margin-bottom:8px}
+.cluster-card .c-fix{font-size:.84rem;color:#2dd4a8;line-height:1.65}
+.cluster-card .c-fix::before{content:"✦ Fix: ";font-weight:700}
+.insight-box{background:linear-gradient(135deg,rgba(124,106,246,.10),rgba(45,212,168,.06));border:1px solid rgba(124,106,246,.25);border-radius:12px;padding:20px 24px;margin-bottom:18px;font-size:.9rem;line-height:1.75;color:#d1d5e0}
+.insight-box strong{color:#a599ff}
+.drill-item{display:flex;gap:14px;padding:14px 16px;background:#0b0d13;border:1px solid #252a3a;border-radius:10px;margin-bottom:10px}
+.drill-num{font-size:1.1rem;font-weight:800;color:#7c6af6;min-width:28px}
+.drill-txt .d-title{font-weight:700;font-size:.88rem;color:#f0f2f8;margin-bottom:4px}
+.drill-txt .d-impact{font-size:.8rem;color:#2dd4a8;margin-bottom:3px}
+.drill-txt .d-drill{font-size:.82rem;color:#a0a5bb;line-height:1.6}
+</style>
+
+</div><!-- end #mode-video -->
+
+<div id="mode-twin" style="display:none">
+<div id="twin-section">
+  <div class="twin-header">
+    <h2>🤖 Digital Twin Simulator</h2>
+    <p>Answer a questionnaire → generate your AI twin → run 10 social simulations → get precision coaching</p>
+  </div>
+
+  <div class="twin-tabs">
+    <button class="twin-tab active" onclick="showTwinTab('tab-auth')">🔐 Account</button>
+    <button class="twin-tab" onclick="showTwinTab('tab-form')">📋 Questionnaire</button>
+    <button class="twin-tab" onclick="showTwinTab('tab-video')">🎦 Upload Your Video</button>
+    <button class="twin-tab" onclick="showTwinTab('tab-sim')">⚡ Run Simulation</button>
+    <button class="twin-tab" onclick="showTwinTab('tab-results')">📊 Results & Coaching</button>
+  </div>
+
+  <!-- ── AUTH PANEL ── -->
+  <div id="tab-auth" class="twin-panel active">
+    <div class="auth-card">
+      <h3 style="color:#f0f2f8;font-size:1.05rem;margin-bottom:20px">Create account or log in</h3>
+      <div class="form-group"><label>Email</label><input type="email" id="auth-email" placeholder="you@example.com"></div>
+      <div class="form-group" id="auth-name-wrap"><label>Name</label><input type="text" id="auth-name" placeholder="Your name"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="auth-password" placeholder="••••••••"></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn-primary" style="margin-top:0" onclick="doRegister()">Register</button>
+        <button class="btn-outline" onclick="doLogin()">Log In</button>
+      </div>
+      <div class="auth-msg" id="auth-msg"></div>
+      <div class="twin-token" id="twin-token-display"></div>
+    </div>
+  </div>
+
+  <!-- ── QUESTIONNAIRE PANEL ── -->
+  <div id="tab-form" class="twin-panel">
+    <div id="twin-q-container">
+      <p style="color:#7a809a;text-align:center;padding:40px">Log in first to unlock the questionnaire.</p>
+    </div>
+    <div id="twin-q-nav" style="display:none;flex-direction:row;gap:12px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap">
+      <button class="btn-outline" onclick="saveTwinDraft()">💾 Save Draft</button>
+      <button class="btn-outline" onclick="saveFormAsPDF()">📄 Save as PDF</button>
+    </div>
+    <div class="auth-msg" id="twin-create-msg"></div>
+  </div>
+
+  <!-- ── UPLOAD VIDEO PANEL ── -->
+  <div id="tab-video" class="twin-panel">
+    <div style="background:#13161f;border:1px solid #2a3045;border-radius:14px;padding:28px 30px">
+      <h3 style="color:#f0f2f8;font-size:1.05rem;font-weight:700;margin-bottom:8px">🎦 Upload Your Video</h3>
+      <p style="color:#7a809a;font-size:.85rem;line-height:1.75;margin-bottom:20px">
+        Upload a video of yourself speaking naturally — in an interview, pitch, or conversation setting.<br>
+        We will extract <strong style="color:#a599ff">posture · facial expressions · body language · spine angle · eye contact · hand movement frequency · confidence indicators</strong> using <em style="color:#2dd4a8">OpenPose + MediaPipe</em>.<br>
+        This becomes the <strong style="color:#a599ff">Embodied Model</strong> layer of your Digital Twin, cross-referenced with your self-assessment answers.
+      </p>
+      <div id="twin-video-drop" onclick="document.getElementById('twin-video-input').click()"
+        style="border:2px dashed #2a3045;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:.25s"
+        onmouseover="this.style.borderColor='#7c6af6';this.style.background='rgba(124,106,246,.05)'"
+        onmouseout="this.style.borderColor='#2a3045';this.style.background='transparent'">
+        <div style="font-size:3rem;margin-bottom:10px">📹</div>
+        <p style="color:#d1d5e0;font-size:.95rem;font-weight:600">Drag &amp; drop your video here</p>
+        <p style="color:#7a809a;font-size:.82rem;margin-top:6px">or <strong style="color:#a599ff">click to browse</strong></p>
+        <p style="color:#44506a;font-size:.75rem;margin-top:8px">MP4 · MOV · AVI · WEBM — up to 500 MB</p>
+      </div>
+      <input type="file" id="twin-video-input" accept="video/*" style="display:none" onchange="handleTwinVideo(this)">
+      <div id="twin-video-name" style="margin-top:12px;font-size:.84rem;color:#2dd4a8;min-height:20px"></div>
+      <div id="twin-video-progress" style="display:none;margin-top:14px">
+        <div style="background:#0b0d13;border-radius:50px;height:8px;overflow:hidden">
+          <div id="twin-video-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c6af6,#2dd4a8);border-radius:50px;transition:width .4s"></div>
+        </div>
+        <div id="twin-video-status" style="color:#a599ff;font-size:.83rem;font-weight:600;margin-top:8px">Uploading…</div>
+      </div>
+      <div style="margin-top:20px;padding:14px 16px;background:#0b0d13;border-radius:10px;border:1px solid #252a3a">
+        <p style="font-size:.8rem;color:#7a809a;line-height:1.7">💡 <strong style="color:#a0a5bb">Tips for best results:</strong> Record in good lighting · Face the camera directly · Speak for at least 60 seconds · Use a neutral background</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button class="btn-primary" style="width:auto;margin-top:0" onclick="createTwin()">🚀 Create My Twin</button>
+      </div>
+      <div class="auth-msg" id="twin-video-msg" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- ── SIMULATION PANEL ── -->
+  <div id="tab-sim" class="twin-panel">
+    <div class="card" style="background:#13161f">
+      <h2>⚡ Simulation Control</h2>
+      <p style="color:#7a809a;font-size:.88rem;margin-bottom:20px">Your twin will play through <strong style="color:#a599ff">10 social scenarios</strong> — 3 job interviews, 3 investor pitches, 4 dating conversations.</p>
+      <div id="sim-twin-info" style="margin-bottom:18px"></div>
+      <button class="btn-primary" style="max-width:280px" onclick="startSimulation()">▶ Start 10 Simulations</button>
+      <div id="sim-progress-wrap" style="display:none;margin-top:24px">
+        <div style="display:flex;justify-content:space-between;font-size:.83rem;color:#7a809a;margin-bottom:4px">
+          <span>Progress</span><span id="sim-count">0 / 10</span>
+        </div>
+        <div class="sim-bar-outer"><div class="sim-bar-inner" id="sim-bar"></div></div>
+        <div id="sim-status-txt" style="color:#a599ff;font-size:.85rem;font-weight:600;margin-top:8px">Initialising…</div>
+        <div class="stats-grid" id="sim-live-stats"></div>
+      </div>
+      <div class="auth-msg" id="sim-msg"></div>
+    </div>
+
+    <!-- ── SCENARIO BROWSER (all 10 conversations) ── -->
+    <div id="sim-browser" style="display:none;margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="color:#a599ff;font-size:.88rem;font-weight:700">📋 All Scenarios — click to view any conversation</div>
+        <div id="sim-browser-live-badge" style="background:#f59e0b22;border:1px solid #f59e0b;color:#f59e0b;font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;display:none">⚡ LIVE</div>
+      </div>
+      <!-- tab pills for each scenario -->
+      <div class="scen-tabs" id="scen-tabs"></div>
+      <!-- selected scenario conversation -->
+      <div id="scen-detail">
+        <div class="scen-header" id="scen-header">
+          <div class="scen-badge" id="scen-badge">SCENARIO 1 / 10</div>
+          <div class="scen-name" id="scen-name">Loading…</div>
+          <div class="scen-cat" id="scen-cat"></div>
+          <div class="scen-score-pill" id="scen-score-pill" style="display:none"></div>
+        </div>
+        <div class="chat-box" id="scen-chat-box"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RESULTS PANEL ── -->
+  <div id="tab-results" class="twin-panel">
+    <div id="twin-results-container">
+      <p style="color:#7a809a;text-align:center;padding:40px">Run a simulation first to see results.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Twin state ─────────────────────────────────────────────────
+let twinAuthToken = localStorage.getItem('twinToken') || null;
+let twinUserId    = localStorage.getItem('twinUserId') || null;
+let twinId        = localStorage.getItem('twinId') || null;
+let currentSimId  = null;
+let simPollTimer  = null;
+let twinFormData  = {};
+let twinSchema    = null;
+let latestAnalysisData = null;
+
+function setTwinStatus(msg, cls=''){
+  const ids = ['twin-create-msg','twin-video-msg'];
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = msg;
+    el.className = 'auth-msg ' + (cls||'');
+  });
+}
+
+function showTwinTab(id, evt){
+  document.querySelectorAll('.twin-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.twin-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const clicked = (evt && evt.target) ? evt.target : (window.event && window.event.target ? window.event.target : null);
+  if(clicked && clicked.classList && clicked.classList.contains('twin-tab')){
+    clicked.classList.add('active');
+  } else {
+    const tabMap = {
+      'tab-auth': 0,
+      'tab-form': 1,
+      'tab-video': 2,
+      'tab-sim': 3,
+      'tab-results': 4,
+    };
+    const idx = tabMap[id];
+    if(idx !== undefined){
+      const tabs = document.querySelectorAll('.twin-tab');
+      if(tabs[idx]) tabs[idx].classList.add('active');
+    }
+  }
+  if(id==='tab-form' && twinAuthToken && !twinSchema) loadTwinForm();
+  if(id==='tab-sim') refreshSimPanel();
+}
+
+// ── Auth ───────────────────────────────────────────────────────
+async function doRegister(){
+  const email=document.getElementById('auth-email').value.trim();
+  const name=document.getElementById('auth-name').value.trim();
+  const pw=document.getElementById('auth-password').value;
+  setAuthMsg('Registering…','');
+  const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name,password:pw})});
+  const d=await r.json();
+  if(d.error){setAuthMsg(d.error,'err');return;}
+  saveAuthSession(d);
+  setAuthMsg('✓ Account created! You can now fill the questionnaire.','ok');
+}
+async function doLogin(){
+  const email=document.getElementById('auth-email').value.trim();
+  const pw=document.getElementById('auth-password').value;
+  setAuthMsg('Logging in…','');
+  const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});
+  const d=await r.json();
+  if(d.error){setAuthMsg(d.error,'err');return;}
+  saveAuthSession(d);
+  setAuthMsg('✓ Logged in!','ok');
+}
+function saveAuthSession(d){
+  twinAuthToken=d.token;twinUserId=d.user_id;
+  localStorage.setItem('twinToken',d.token);
+  localStorage.setItem('twinUserId',d.user_id);
+  document.getElementById('twin-token-display').style.display='block';
+  document.getElementById('twin-token-display').textContent='Token: '+d.token.slice(0,32)+'…';
+}
+function setAuthMsg(msg,cls){
+  const el=document.getElementById('auth-msg');
+  el.textContent=msg;el.className='auth-msg '+(cls||'');
+}
+
+// ── Questionnaire ──────────────────────────────────────────────
+async function loadTwinForm(){
+  if(!twinSchema){
+    const r=await fetch('/twin/schema');
+    twinSchema=await r.json();
+  }
+  renderTwinForm(twinSchema);
+}
+function renderTwinForm(schema){
+  const cont=document.getElementById('twin-q-container');
+  const total=schema.sections.reduce((s,sec)=>s+sec.questions.length,0);
+  let html=`<div class="q-progress"><span>📋 ${total} questions</span><span style="color:#7a809a;font-size:.79rem">Answer as many as possible for best accuracy</span></div>`;
+  schema.sections.forEach(sec=>{
+    const icon=sec.icon||'📌';
+    html+=`<div class="q-section">
+      <div class="q-section-header">
+        <span class="q-section-icon">${icon}</span>
+        <div>
+          <h3 style="margin-bottom:2px;border:none;padding:0;font-size:1rem;font-weight:700;color:#a599ff">${sec.title}</h3>
+          ${sec.subtitle?`<div class="q-sub">${sec.subtitle}</div>`:''}
+        </div>
+      </div>
+      <div style="border-bottom:1px solid #252a3a;margin-bottom:16px"></div>`;
+    sec.questions.forEach(q=>{
+      const label=q.label||q.text||q.id;
+      const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
+      html+=`<div class="q-item"><label>${label}${req}</label>`;
+      if(q.type==='scale'){
+        html+=`<div class="q-scale-wrap"><div class="q-scale">`;
+        for(let i=q.min||1;i<=(q.max||10);i++){
+          html+=`<button type="button" onclick="setScaleVal('${q.id}',${i},this)">${i}</button>`;
+        }
+        html+=`</div>`;
+        if(q.min_label||q.max_label){
+          html+=`<div class="q-scale-labels"><span>${q.min_label||''}</span><span>${q.max_label||''}</span></div>`;
+        }
+        html+=`</div>`;
+      } else if(q.type==='single_select'||q.type==='multi_select'){
+        const multi=q.type==='multi_select';
+        const hint=multi?`<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>`:'';
+        html+=hint+`<div class="q-chips">`;
+        (q.options||[]).forEach(opt=>{
+          html+=`<button type="button" onclick="toggleChip('${q.id}','${opt}',this,${multi})">${opt}</button>`;
+        });
+        html+=`</div>`;
+      } else if(q.type==='textarea'){
+        html+=`<textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||'Write your answer here…'}" oninput="twinFormData['${q.id}']=this.value"></textarea>`;
+      } else if(q.type==='text'){
+        html+=`<input type="text" id="q-${q.id}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none">`;
+      }
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+  cont.innerHTML=html;
+  document.getElementById('twin-q-nav').style.display='flex';
+}
+function setScaleVal(qid,val,btn){
+  twinFormData[qid]=val;
+  btn.closest('.q-scale').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+function toggleChip(qid,val,btn,multi){
+  if(!multi){
+    btn.closest('.q-chips').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
+    twinFormData[qid]=val;
+    btn.classList.add('sel');
+  } else {
+    btn.classList.toggle('sel');
+    const arr=twinFormData[qid]||[];
+    const idx=arr.indexOf(val);
+    if(idx>=0) arr.splice(idx,1); else arr.push(val);
+    twinFormData[qid]=arr;
+  }
+}
+function saveTwinDraft(){
+  localStorage.setItem('twinFormDraft',JSON.stringify(twinFormData));
+  document.getElementById('twin-create-msg').textContent='Draft saved locally.';
+  document.getElementById('twin-create-msg').className='auth-msg ok';
+}
+function saveFormAsPDF(){
+  if(!twinSchema){alert('Load the questionnaire first.');return;}
+  const msgEl = document.getElementById('twin-create-msg');
+
+  /* ── Use jsPDF pure-text API — no canvas screenshot, no white pages ── */
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+
+  const PW   = 210;          // page width  mm
+  const PH   = 297;          // page height mm
+  const ML   = 18;           // margin left
+  const MR   = 18;           // margin right
+  const MT   = 20;           // margin top
+  const MB   = 20;           // margin bottom
+  const TW   = PW - ML - MR; // text width
+  let   y    = MT;
+
+  /* helper: wrap + print text, return new y */
+  function addText(text, fontSize, isBold, colorHex, indent){
+    indent = indent || 0;
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    const rgb = hexToRgb(colorHex || '#111111');
+    doc.setTextColor(rgb.r, rgb.g, rgb.b);
+    const lines = doc.splitTextToSize(String(text), TW - indent);
+    lines.forEach(line=>{
+      if(y + fontSize * 0.4 > PH - MB){ doc.addPage(); y = MT; }
+      doc.text(line, ML + indent, y);
+      y += fontSize * 0.45;
+    });
+    return y;
+  }
+
+  function hexToRgb(hex){
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return {r,g,b};
+  }
+
+  function drawRect(x,ry,w,h,fillHex){
+    const rgb = hexToRgb(fillHex);
+    doc.setFillColor(rgb.r,rgb.g,rgb.b);
+    doc.rect(x, ry, w, h, 'F');
+  }
+
+  /* ── Title ── */
+  addText('Digital Twin Questionnaire', 18, true, '#1a1a2e');
+  y += 2;
+  addText('Generated: ' + new Date().toLocaleString(), 9, false, '#888888');
+  y += 6;
+
+  /* ── Sections & Questions ── */
+  twinSchema.sections.forEach((sec, si)=>{
+    /* section divider */
+    if(y + 12 > PH - MB){ doc.addPage(); y = MT; }
+    drawRect(ML, y, TW, 8, '#4a3fce');
+    doc.setFontSize(11);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(255,255,255);
+    doc.text((sec.title||'Section '+(si+1)).replace(/[^\x00-\x7F]/g,''), ML+3, y+5.5);
+    y += 11;
+    if(sec.subtitle){
+      addText(sec.subtitle.replace(/[^\x00-\x7F]/g,''), 8.5, false, '#666666');
+      y += 2;
+    }
+
+    sec.questions.forEach(q=>{
+      const label   = (q.label||q.text||q.id);
+      const val     = twinFormData[q.id];
+      const qtype   = q.type || 'text';
+
+      /* ── question label ── */
+      if(y + 14 > PH - MB){ doc.addPage(); y = MT; }
+      addText(label, 9.5, true, '#222222', 0);
+      y += 2;
+
+      /* ══ SCALE ══ */
+      if(qtype === 'scale'){
+        const selected = (val !== undefined && val !== null && val !== '') ? Number(val) : null;
+        const minV = q.min || 1;
+        const maxV = q.max || 10;
+        const count = maxV - minV + 1;
+        const chipW = Math.min((TW - (count-1)*2) / count, 14);
+        const chipH = 7;
+        const totalW = count * chipW + (count-1)*2;
+        let cx = ML + (TW - totalW)/2;
+
+        if(y + chipH + 10 > PH - MB){ doc.addPage(); y = MT; }
+
+        for(let v = minV; v <= maxV; v++){
+          const isSel = (selected === v);
+          // background
+          doc.setFillColor(...(isSel ? [124,106,246] : [240,240,248]));
+          doc.setDrawColor(...(isSel ? [100,82,220] : [200,200,215]));
+          doc.roundedRect(cx, y, chipW, chipH, 1.5, 1.5, 'FD');
+          // number
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', isSel ? 'bold' : 'normal');
+          doc.setTextColor(...(isSel ? [255,255,255] : [100,100,130]));
+          const numStr = String(v);
+          const numW = doc.getTextWidth(numStr);
+          doc.text(numStr, cx + (chipW - numW)/2, y + chipH*0.67);
+          cx += chipW + 2;
+        }
+        y += chipH + 2;
+
+        // min / max labels
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica','normal');
+        doc.setTextColor(140,140,160);
+        if(q.min_label) doc.text(q.min_label, ML, y + 4);
+        if(q.max_label){
+          const mw = doc.getTextWidth(q.max_label);
+          doc.text(q.max_label, ML + TW - mw, y + 4);
+        }
+        y += 7;
+
+        if(!selected){
+          doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(180,180,190);
+          doc.text('Not answered', ML, y); y += 5;
+        }
+        y += 2;
+
+      /* ══ SINGLE / MULTI SELECT ══ */
+      } else if(qtype === 'single_select' || qtype === 'multi_select'){
+        const options = q.options || [];
+        const selVals = Array.isArray(val) ? val : (val ? [val] : []);
+        const selSet  = new Set(selVals);
+
+        const CHIP_H  = 7;
+        const PAD_X   = 3;
+        const GAP_X   = 3;
+        const GAP_Y   = 3;
+        doc.setFontSize(8);
+
+        let cx = ML;
+        let rowMaxH = CHIP_H;
+
+        options.forEach((opt, oi)=>{
+          const isSel  = selSet.has(opt);
+          const textW  = doc.getTextWidth(opt);
+          const chipW  = textW + PAD_X * 2;
+
+          // wrap to next row if needed
+          if(cx + chipW > ML + TW && cx > ML){
+            y += rowMaxH + GAP_Y;
+            cx = ML;
+            rowMaxH = CHIP_H;
+            if(y + CHIP_H > PH - MB){ doc.addPage(); y = MT; cx = ML; }
+          }
+          if(y + CHIP_H > PH - MB){ doc.addPage(); y = MT; cx = ML; }
+
+          // chip background
+          doc.setFillColor(...(isSel ? [124,106,246] : [240,240,248]));
+          doc.setDrawColor(...(isSel ? [100,82,220] : [200,200,215]));
+          doc.roundedRect(cx, y, chipW, CHIP_H, 2, 2, 'FD');
+
+          // chip text
+          doc.setFont('helvetica', isSel ? 'bold' : 'normal');
+          doc.setTextColor(...(isSel ? [255,255,255] : [80,80,110]));
+          doc.text(opt, cx + PAD_X, y + CHIP_H * 0.67);
+
+          cx += chipW + GAP_X;
+        });
+
+        y += rowMaxH + GAP_Y + 2;
+
+        if(selVals.length === 0){
+          doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(180,180,190);
+          doc.text('Not answered', ML, y); y += 5;
+        }
+        y += 1;
+
+      /* ══ TEXTAREA / TEXT ══ */
+      } else {
+        const ans = (val !== undefined && val !== null && val !== '') ? String(val) : 'Not answered';
+        doc.setFontSize(9);
+        const ansLines = doc.splitTextToSize(ans, TW - 4);
+        const boxH = Math.max(8, ansLines.length * 4.4 + 4);
+        if(y + boxH > PH - MB){ doc.addPage(); y = MT; }
+        drawRect(ML, y, TW, boxH, '#f4f4f8');
+        doc.setDrawColor(210,210,220);
+        doc.rect(ML, y, TW, boxH, 'S');
+        doc.setFont('helvetica', ans === 'Not answered' ? 'italic' : 'normal');
+        doc.setTextColor(...(ans === 'Not answered' ? [180,180,190] : [60,60,80]));
+        ansLines.forEach((line, li)=>{ doc.text(line, ML+2, y + 5 + li*4.4); });
+        y += boxH + 4;
+      }
+    });
+    y += 4;
+  });
+
+  doc.save('digital-twin-questionnaire.pdf');
+  if(msgEl){ msgEl.textContent='✓ PDF downloaded.'; msgEl.className='auth-msg ok'; }
+}
+
+// ── Twin Video Upload ──────────────────────────────────────────
+let twinVideoJobId = null;
+async function handleTwinVideo(input){
+  const file = input.files[0];
+  if(!file) return;
+  document.getElementById('twin-video-name').textContent = '📎 ' + file.name;
+  document.getElementById('twin-video-progress').style.display='block';
+  document.getElementById('twin-video-status').textContent='Initialising job…';
+  document.getElementById('twin-video-bar').style.width='5%';
+
+  // 1. Get a job_id first
+  const initRes = await fetch('/init-job', {method:'POST'});
+  const initData = await initRes.json();
+  twinVideoJobId = initData.job_id;
+
+  // 2. Upload video (reuses existing /upload endpoint)
+  const fd = new FormData();
+  fd.append('video', file);
+  fd.append('job_id', twinVideoJobId);
+  document.getElementById('twin-video-status').textContent='Uploading video…';
+  document.getElementById('twin-video-bar').style.width='20%';
+
+  const upRes = await fetch('/upload', {method:'POST', body:fd});
+  const upData = await upRes.json();
+  if(upData.error){ document.getElementById('twin-video-status').textContent='Upload error: '+upData.error; return; }
+
+  document.getElementById('twin-video-status').textContent='Analysing video (posture, face, body language…)';
+  document.getElementById('twin-video-bar').style.width='40%';
+
+  // 3. Poll until done
+  const pollTimer = setInterval(async()=>{
+    const sr = await fetch('/status/'+twinVideoJobId);
+    const sd = await sr.json();
+    if(sd.status==='done'){
+      clearInterval(pollTimer);
+      document.getElementById('twin-video-bar').style.width='100%';
+      document.getElementById('twin-video-status').textContent='✓ Video analysed — embodied model ready';
+      document.getElementById('twin-video-status').style.color='#2dd4a8';
+      // store job_id so createTwin() can attach it
+      localStorage.setItem('twinVideoJobId', twinVideoJobId);
+    } else if(sd.status==='error'){
+      clearInterval(pollTimer);
+      document.getElementById('twin-video-status').textContent='Analysis error — please retry video upload.';
+    } else {
+      document.getElementById('twin-video-status').textContent = sd.progress||'Processing…';
+      document.getElementById('twin-video-bar').style.width='65%';
+    }
+  }, 3000);
+}
+async function createTwin(){
+  if(!twinAuthToken){setTwinStatus('Log in first.','err');return;}
+  if(!twinSchema){
+    await loadTwinForm();
+  }
+  const answeredCount = Object.values(twinFormData).filter(v=>
+    v!==undefined && v!==null && v!=='' && (!Array.isArray(v) || v.length>0)
+  ).length;
+  if(answeredCount < 8){
+    setTwinStatus('Please complete the questionnaire first (at least basic sections).','err');
+    showTwinTab('tab-form');
+    return;
+  }
+
+  // Require completed video analysis for embodied model
+  const videoJobId = twinVideoJobId || localStorage.getItem('twinVideoJobId') || currentJobId || null;
+  if(!videoJobId){
+    setTwinStatus('Upload and analyze your video first, then create twin.','err');
+    return;
+  }
+  const st = await fetch('/status/'+videoJobId).then(r=>r.json()).catch(()=>({status:'error'}));
+  if(st.status!=='done'){
+    setTwinStatus('Video analysis is still running. Please wait for completion.','err');
+    return;
+  }
+
+  setTwinStatus('Creating your twin from questionnaire + video…');
+  const r=await fetch('/twin/create',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+    body:JSON.stringify({form_data:twinFormData,video_job_id:videoJobId})
+  });
+  const d=await r.json();
+  if(d.error){
+    setTwinStatus(d.error,'err');
+    return;
+  }
+  twinId=d.twin_id;
+  localStorage.setItem('twinId',twinId);
+  setTwinStatus('✓ Twin created using both questionnaire and video context! Go to "Run Simulation".','ok');
+}
+
+// ── Simulation ─────────────────────────────────────────────────
+function refreshSimPanel(){
+  const info=document.getElementById('sim-twin-info');
+  if(twinId) info.innerHTML=`<div style="background:#0b0d13;border:1px solid #252a3a;border-radius:8px;padding:10px 14px;font-size:.84rem;color:#2dd4a8">✓ Twin ready: <strong>${twinId.slice(0,18)}…</strong></div>`;
+  else info.innerHTML=`<div style="color:#f87171;font-size:.84rem">No twin created yet. Fill the questionnaire first.</div>`;
+  // Restore scenario browser if data exists (handles coming back to this tab)
+  if(Object.keys(_allScenarios).length > 0){
+    document.getElementById('sim-browser').style.display = 'block';
+    _renderScenarioTabs();
+    const targetNum = _activeScenarioNum ||
+      Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b).slice(-1)[0];
+    if(targetNum) _showScenario(targetNum);
+  }
+}
+async function startSimulation(){
+  if(!twinAuthToken||!twinId){document.getElementById('sim-msg').textContent='Create a twin first.';return;}
+  document.getElementById('sim-msg').textContent='';
+  document.getElementById('sim-progress-wrap').style.display='block';
+  document.getElementById('sim-status-txt').textContent='Starting…';
+  document.getElementById('sim-browser').style.display='none';
+  document.getElementById('scen-tabs').innerHTML='';
+  document.getElementById('scen-chat-box').innerHTML='';
+  // reset state
+  _lastRenderedScenario=0;
+  _activeScenarioNum=null;
+  Object.keys(_allScenarios).forEach(k=>delete _allScenarios[k]);
+  const r=await fetch('/simulation/begin',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+    body:JSON.stringify({twin_id:twinId})
+  });
+  const d=await r.json();
+  if(d.error){document.getElementById('sim-msg').textContent=d.error;return;}
+  currentSimId=d.sim_id;
+  pollSimulation();
+}
+let _lastRenderedScenario = 0;
+const _allScenarios = {};  // scenario_num → live_turn data
+let _activeScenarioNum = null;
+
+const CATEGORY_LABELS = {
+  job_interview: '💼 Job Interview',
+  investor_pitch: '💡 Investor Pitch',
+  dating: '❤️ Dating'
+};
+
+function _verdictClass(score){
+  if(score >= 7) return 'success';
+  if(score >= 5) return 'partial';
+  return 'failure';
+}
+
+function _scoreColor(score){
+  if(score >= 7) return '#2dd4a8';
+  if(score >= 4) return '#f59e0b';
+  return '#f87171';
+}
+
+function _renderScenarioTabs(){
+  const container = document.getElementById('scen-tabs');
+  if(!container) return;
+  container.innerHTML = '';
+  const nums = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b);
+  nums.forEach(num => {
+    const s = _allScenarios[num];
+    const btn = document.createElement('button');
+    btn.className = 'scen-tab-btn' + (s.score != null ? ' ' + _verdictClass(s.score) : '');
+    if(num === _activeScenarioNum) btn.classList.add('active');
+    const catEmoji = s.category === 'job_interview' ? '💼' : s.category === 'investor_pitch' ? '💡' : '❤️';
+    btn.textContent = catEmoji + ' #' + num;
+    btn.title = s.counter_party || '';
+    btn.onclick = () => _showScenario(num);
+    container.appendChild(btn);
+  });
+}
+
+function _showScenario(num){
+  _activeScenarioNum = num;
+  const s = _allScenarios[num];
+  if(!s) return;
+
+  // update tab highlights
+  document.querySelectorAll('.scen-tab-btn').forEach((b,i)=>{
+    const n = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b)[i];
+    b.classList.toggle('active', n === num);
+  });
+
+  // update header
+  document.getElementById('scen-badge').textContent = 'SCENARIO ' + num + ' / ' + (s.total || 10);
+  document.getElementById('scen-name').textContent = s.counter_party || 'Scenario ' + num;
+  document.getElementById('scen-cat').textContent = CATEGORY_LABELS[s.category] || s.category || '';
+
+  const pill = document.getElementById('scen-score-pill');
+  if(s.score != null){
+    const c = _scoreColor(s.score);
+    pill.style.display = 'inline-block';
+    pill.style.borderColor = c;
+    pill.style.color = c;
+    pill.textContent = 'Score: ' + s.score + '/10  •  ' + (s.outcome || '');
+  } else {
+    pill.style.display = 'none';
+    pill.textContent = '⚡ Live';
+    pill.style.display = 'inline-block';
+    pill.style.borderColor = '#f59e0b';
+    pill.style.color = '#f59e0b';
+  }
+
+  // render chat
+  const box = document.getElementById('scen-chat-box');
+  box.innerHTML = '';
+  const conv = s.conversation || [];
+  if(conv.length === 0){
+    box.innerHTML = '<div style="color:#555;padding:20px;text-align:center">Conversation in progress…</div>';
+    return;
+  }
+  conv.forEach(msg => {
+    const isAgent = msg.role === 'agent';
+    const wrap = document.createElement('div');
+    wrap.className = 'sim-bubble-wrap ' + (isAgent ? 'agent' : 'twin');
+    const label = document.createElement('div');
+    label.className = 'sim-bubble-label ' + (isAgent ? 'agent' : 'twin');
+    label.textContent = isAgent ? '🤖 ' + (s.counter_party || 'Agent') : '👤 Your Twin';
+    const bubble = document.createElement('div');
+    bubble.className = 'sim-bubble ' + (isAgent ? 'agent' : 'twin');
+    bubble.textContent = msg.content;
+    wrap.appendChild(label);
+    wrap.appendChild(bubble);
+    box.appendChild(wrap);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function pollSimulation(){
+  if(simPollTimer) clearInterval(simPollTimer);
+  simPollTimer=setInterval(async()=>{
+    if(!currentSimId) return;
+    const r=await fetch('/simulation/'+currentSimId,{headers:{'Authorization':'Bearer '+twinAuthToken}});
+    const d=await r.json();
+    const pct=d.total>0?Math.round(d.completed/d.total*100):0;
+    document.getElementById('sim-bar').style.width=pct+'%';
+    document.getElementById('sim-count').textContent=d.completed+' / '+d.total;
+    document.getElementById('sim-status-txt').textContent=
+      d.status==='completed'?'✓ Complete! Running analysis…':
+      d.status==='error'?'Error: '+d.error:
+      'Running… '+pct+'%';
+
+    // ── seed all past turns from backend (handles reload mid-sim) ──
+    const allTurns = d.all_turns || [];
+    allTurns.forEach(t => {
+      if(!_allScenarios[t.scenario_num]) _allScenarios[t.scenario_num] = t;
+      else Object.assign(_allScenarios[t.scenario_num], t); // update score/outcome
+    });
+    if(allTurns.length > 0){
+      document.getElementById('sim-browser').style.display = 'block';
+      _renderScenarioTabs();
+      if(!_activeScenarioNum) _showScenario(allTurns[allTurns.length-1].scenario_num);
+    }
+
+    // ── accumulate all arriving scenarios ──
+    const lt = d.live_turn;
+    if(lt && lt.scenario_num && lt.scenario_num !== _lastRenderedScenario){
+      _lastRenderedScenario = lt.scenario_num;
+      _allScenarios[lt.scenario_num] = lt;
+      document.getElementById('sim-browser').style.display = 'block';
+      document.getElementById('sim-browser-live-badge').style.display = 'inline-block';
+      _renderScenarioTabs();
+      // auto-show latest arriving scenario
+      _showScenario(lt.scenario_num);
+    }
+
+    if(d.status==='completed'||d.status==='error'){
+      clearInterval(simPollTimer);
+      document.getElementById('sim-browser-live-badge').style.display = 'none';
+      if(d.status==='completed') runAnalysis();
+    }
+  },2500);
+}
+async function runAnalysis(){
+  document.getElementById('sim-status-txt').textContent='🧠 Running cluster analysis…';
+  const r=await fetch('/analysis/'+currentSimId,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+    body:JSON.stringify({twin_id:twinId})
+  });
+  const d=await r.json();
+  if(d.error){document.getElementById('sim-status-txt').textContent='Analysis error: '+d.error;return;}
+  latestAnalysisData = d;
+  renderTwinResults(d);
+  document.getElementById('sim-status-txt').textContent='✓ Analysis complete! Check "Results & Coaching".';
+  // Auto-switch to results tab
+  setTimeout(()=>{
+    document.querySelectorAll('.twin-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.twin-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-results').classList.add('active');
+    document.querySelectorAll('.twin-tab')[4].classList.add('active');
+  },1500);
+}
+
+// ── Results rendering ──────────────────────────────────────────
+function renderTwinResults(data){
+  const c=document.getElementById('twin-results-container');
+  const cr=data.cluster_report||{};
+  const fb=data.feedback||{};
+  const clusters=cr.failure_clusters||[];
+  const improvements=cr.top_improvements||[];
+  const insight=cr.critical_insight||'';
+  const catResults=cr.category_results||{};
+  const pm=cr.personality_success_matrix||[];
+
+  // Stats
+  let statsHtml=`<div class="stats-grid">
+    <div class="sim-stat"><div class="val">${cr.overall_success_rate||0}%</div><div class="lbl">Overall Success</div></div>
+    <div class="sim-stat"><div class="val">${cr.total_simulations||0}</div><div class="lbl">Simulations Run</div></div>`;
+  Object.entries(catResults).forEach(([cat,v])=>{
+    statsHtml+=`<div class="sim-stat"><div class="val">${v.success_rate}%</div><div class="lbl">${cat.replace(/_/g,' ')}</div></div>`;
+  });
+  statsHtml+=`</div>`;
+
+  // Insight box
+  const insightHtml=insight?`<div class="insight-box"><strong>Critical Insight:</strong> ${insight}</div>`:'';
+
+  // Failure clusters
+  let clustersHtml='';
+  clusters.forEach(cl=>{
+    clustersHtml+=`<div class="cluster-card">
+      <div class="c-name">${cl.cluster_name||''}</div>
+      <div class="c-freq">${(cl.frequency_pct||0).toFixed(0)}% of failures</div>
+      <div class="c-desc">${cl.description||''}</div>
+      <div class="c-fix">${cl.fix||''}</div>
+    </div>`;
+  });
+
+  // Improvements
+  let drillsHtml='';
+  improvements.forEach(imp=>{
+    drillsHtml+=`<div class="drill-item">
+      <div class="drill-num">${imp.rank||''}</div>
+      <div class="drill-txt">
+        <div class="d-title">${imp.improvement||''}</div>
+        <div class="d-impact">${imp.expected_impact||''}</div>
+        <div class="d-drill">${imp.practice_drill||''}</div>
+      </div>
+    </div>`;
+  });
+
+  // Scenario verdicts
+  let verdictsHtml='';
+  const verdicts = fb.scenario_verdicts || [];
+  verdicts.forEach(v=>{
+    verdictsHtml += `<div class="cluster-card">
+      <div class="c-name">${v.emoji||'🎯'} ${v.title||v.category||''}</div>
+      <div class="c-freq">${v.success_rate||0}% success</div>
+      <div class="c-desc">${v.verdict||''} — ${v.top_strength||''}</div>
+      <div class="c-fix">Weak point: ${v.top_weakness||''}</div>
+    </div>`;
+  });
+
+  // 30-day plan
+  let planHtml='';
+  const plan = Array.isArray(fb['30_day_plan'])
+    ? fb['30_day_plan']
+    : ((fb.thirty_day_plan && fb.thirty_day_plan.weeks) || []);
+  if(plan.length){
+    planHtml='<div class="card" style="background:#13161f;margin-top:0"><h2>📅 30-Day Plan</h2>';
+    plan.forEach(w=>{
+      planHtml+=`<div style="margin-bottom:16px"><strong style="color:#a599ff">Week ${w.week||''}</strong>
+        <p style="color:#a0a5bb;font-size:.86rem;margin-top:6px;line-height:1.7">${w.focus||''}</p>
+        <ul style="padding-left:18px;margin-top:6px">`;
+      const drills = w.drills || (w.daily_drill ? [w.daily_drill] : []);
+      drills.forEach(d=>{planHtml+=`<li style="color:#d1d5e0;font-size:.84rem;margin-bottom:4px">${d}</li>`;});
+      planHtml+=`</ul></div>`;
+    });
+    planHtml+='</div>';
+  }
+
+  // Per-scenario coaching breakdown (replaces gist)
+  let gistHtml = '';
+  const scenNums = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b);
+  if(scenNums.length > 0){
+    gistHtml = '<div class="card" style="background:#13161f;margin-bottom:24px"><h2>🎯 Per-Scenario Coaching Breakdown</h2><p style="color:#7a809a;font-size:.83rem;margin:-10px 0 18px">Showing where each conversation felt off and how to handle it better.</p>';
+    scenNums.forEach(num => {
+      const s = _allScenarios[num];
+      if(!s) return;
+      const conv = s.conversation || [];
+      if(!conv.length) return;
+      const score = s.score;
+      const outcome = (s.outcome || 'unknown');
+      const isFailure = score != null && score < 5;
+      const isPartial = score != null && score >= 5 && score < 7;
+      const catLabel = CATEGORY_LABELS[s.category] || (s.category||'').replace(/_/g,' ');
+      const scoreColor = _scoreColor(score);
+      // For failures/partials show last 6 msgs (degradation zone); for success show first 4 (what worked)
+      const highlight = (isFailure || isPartial) ? conv.slice(-6) : conv.slice(0, 4);
+      const sectionLabel = isFailure ? '⚠️ Where it went wrong — final exchanges:'
+        : isPartial ? '⚡ Critical moments — closing exchanges:'
+        : '✅ What worked — opening exchanges:';
+      let turnsHtml = '';
+      highlight.forEach(msg => {
+        const isAgent = msg.role === 'agent';
+        const borderCol = isAgent ? '#7c6af6' : '#2dd4a8';
+        const nameTxt   = isAgent ? '🤖 '+(s.counter_party||'Agent') : '👤 Your Twin';
+        const nameCol   = isAgent ? '#a599ff' : '#2dd4a8';
+        const bgCol     = isAgent ? '#1a1e2b' : '#111520';
+        turnsHtml += `<div style="margin:5px 0;padding:9px 13px;border-radius:9px;background:${bgCol};border-left:3px solid ${borderCol}">`
+          + `<div style="font-size:.71rem;font-weight:700;color:${nameCol};margin-bottom:3px">${nameTxt}</div>`
+          + `<div style="font-size:.84rem;color:#d1d5e0;line-height:1.55">${msg.content}</div>`
+          + `</div>`;
+      });
+      // Coaching note: pick best-matching cluster fix
+      let coachNote = '';
+      if(isFailure || isPartial){
+        const matchCluster = clusters.find(cl => cl.what_should_have_been_said) || clusters[0];
+        if(matchCluster){
+          const advice = matchCluster.what_should_have_been_said || matchCluster.fix || '';
+          const why    = matchCluster.why_it_matters || '';
+          if(advice){
+            coachNote = `<div style="margin-top:10px;padding:11px 15px;border-radius:9px;background:#0a1f14;border:1px solid #2dd4a855">`
+              + `<div style="font-size:.72rem;font-weight:700;color:#2dd4a8;margin-bottom:5px;letter-spacing:.4px">💡 HOW TO HANDLE THIS BETTER</div>`
+              + `<div style="font-size:.84rem;color:#c8f5e9;line-height:1.55">${advice}</div>`
+              + (why ? `<div style="font-size:.78rem;color:#7a9e8a;margin-top:6px;font-style:italic">${why}</div>` : '')
+              + `</div>`;
+          }
+        }
+      } else {
+        coachNote = `<div style="margin-top:10px;padding:11px 15px;border-radius:9px;background:#0a1a0d;border:1px solid #2dd4a833">`
+          + `<div style="font-size:.72rem;font-weight:700;color:#2dd4a8;margin-bottom:4px">✅ KEEP DOING THIS</div>`
+          + `<div style="font-size:.83rem;color:#b0e8c8;line-height:1.55">This opening approach created trust. Replicate this frame in tougher scenarios.</div>`
+          + `</div>`;
+      }
+      gistHtml += `<div style="margin-bottom:22px;padding:16px;border-radius:13px;background:#0d1017;border:1px solid ${scoreColor}44">`
+        + `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">`
+        + `<div><span style="font-size:.75rem;font-weight:700;color:#7a809a;letter-spacing:.3px">SCENARIO ${num}</span>`
+        + `<span style="margin-left:10px;font-size:.88rem;font-weight:600;color:#d1d5e0">${catLabel}</span>`
+        + `<span style="margin-left:8px;font-size:.82rem;color:#7a809a">vs ${s.counter_party||''}</span></div>`
+        + `<span style="padding:3px 14px;border-radius:20px;font-size:.78rem;font-weight:700;border:1px solid ${scoreColor};color:${scoreColor}">`
+        + (score!=null ? score+'/10' : '') + ` ${outcome}</span></div>`
+        + `<div style="font-size:.73rem;color:#7a809a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">${sectionLabel}</div>`
+        + turnsHtml + coachNote + `</div>`;
+    });
+    gistHtml += '</div>';
+  }
+
+  // Executive summary
+  const summary=fb.executive_summary||cr.critical_insight||'Analysis complete.';
+
+  c.innerHTML=`
+    <div class="counsellor-banner" style="margin-bottom:24px">
+      <h2>🏆 Your Twin's Coaching Report</h2>
+      <div class="summary">${summary}</div>
+      <div style="margin-top:14px">
+        <button class="btn-outline" onclick="saveCoachingAsPDF()">📄 Download Coaching PDF</button>
+      </div>
+    </div>
+    <div class="card" style="background:#13161f;margin-bottom:24px">
+      <h2>📊 Simulation Statistics</h2>${statsHtml}</div>
+    ${insightHtml}
+    ${verdicts.length?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>🧾 Scenario Verdicts</h2>${verdictsHtml}</div>`:''}
+    ${clusters.length?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>🔍 Failure Clusters</h2>${clustersHtml}</div>`:''}
+    ${gistHtml}
+    ${improvements.length?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>🎯 Top Improvements</h2>${drillsHtml}</div>`:''}
+    ${planHtml}
+  `;
+}
+
+function saveCoachingAsPDF(){
+  if(!latestAnalysisData){
+    alert('Run analysis first.');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  const margin = 14;
+  const pageW = 210;
+  const pageH = 297;
+  const contentW = pageW - margin*2;
+  let y = 18;
+
+  function ensureSpace(h){
+    if(y + h > pageH - 16){ doc.addPage(); y = 18; }
+  }
+  function addTitle(text){
+    ensureSpace(10);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(14);
+    doc.setTextColor(30,30,60);
+    doc.text(text, margin, y);
+    y += 8;
+  }
+  function addPara(text, size=10){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(size);
+    doc.setTextColor(40,40,55);
+    const lines = doc.splitTextToSize(String(text||''), contentW);
+    ensureSpace(lines.length*4.6 + 2);
+    lines.forEach(line=>{ doc.text(line, margin, y); y += 4.6; });
+    y += 1;
+  }
+
+  const cr = latestAnalysisData.cluster_report || {};
+  const fb = latestAnalysisData.feedback || {};
+  const pdfClusters = cr.failure_clusters || [];
+
+  // helper: add a section divider line
+  function addDivider(){
+    ensureSpace(6);
+    doc.setDrawColor(200,200,220);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 5;
+  }
+  // helper: add a sub-heading
+  function addSubHead(text, color=[80,60,160]){
+    ensureSpace(8);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(...color);
+    doc.text(text, margin, y);
+    y += 6;
+  }
+  // helper: add indented paragraph
+  function addIndent(text, indent=4, size=9.5, color=[55,55,70]){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(String(text||''), contentW - indent);
+    ensureSpace(lines.length*4.4 + 2);
+    lines.forEach(line=>{ doc.text(line, margin + indent, y); y += 4.4; });
+    y += 1;
+  }
+
+  addTitle('Digital Twin Coaching Report');
+  addPara(`Generated: ${new Date().toLocaleString()}`);
+  addPara(fb.executive_summary || cr.critical_insight || 'Analysis summary not available.');
+
+  addDivider();
+  addTitle('Simulation Stats');
+  addPara(`Overall success rate: ${cr.overall_success_rate||0}%`);
+  addPara(`Total simulations: ${cr.total_simulations||0}`);
+  const cat = cr.category_results || {};
+  Object.keys(cat).forEach(k=> addPara(`${k.replace(/_/g,' ')}: ${cat[k].success_rate||0}% success`, 9.5));
+
+  // ── Per-Scenario Coaching Breakdown ──────────────────────────
+  const scenNums = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b);
+  if(scenNums.length > 0){
+    addDivider();
+    addTitle('Per-Scenario Coaching Breakdown');
+    addPara('Each scenario below shows the critical exchanges and actionable coaching note.', 9.5);
+    y += 2;
+
+    scenNums.forEach(num => {
+      const s = _allScenarios[num];
+      if(!s) return;
+      const conv = s.conversation || [];
+      if(!conv.length) return;
+      const score = s.score;
+      const outcome = s.outcome || 'unknown';
+      const isFailure = score != null && score < 5;
+      const isPartial = score != null && score >= 5 && score < 7;
+      const catLbl = (s.category||'').replace(/_/g,' ');
+      const highlight = (isFailure || isPartial) ? conv.slice(-6) : conv.slice(0, 4);
+      const sectionLbl = isFailure ? 'Where it went wrong — final exchanges:'
+        : isPartial ? 'Critical moments — closing exchanges:'
+        : 'What worked — opening exchanges:';
+
+      ensureSpace(14);
+      // Scenario header line
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30,30,60);
+      const headerLine = `Scenario ${num}  |  ${catLbl}  |  vs ${s.counter_party||''}  |  Score: ${score!=null?score+'/10':'—'}  ${outcome}`;
+      const hLines = doc.splitTextToSize(headerLine, contentW);
+      ensureSpace(hLines.length * 5 + 2);
+      hLines.forEach(l=>{ doc.text(l, margin, y); y += 5; });
+
+      addSubHead(sectionLbl, [100, 80, 180]);
+      highlight.forEach(msg => {
+        const isAgent = msg.role === 'agent';
+        const speaker = isAgent ? (s.counter_party || 'Agent') : 'Your Twin';
+        addIndent(`${speaker}: ${msg.content}`, 4, 9, isAgent ? [60,50,110] : [30,80,60]);
+      });
+
+      // Coaching note
+      if(isFailure || isPartial){
+        const mc = pdfClusters.find(cl => cl.what_should_have_been_said) || pdfClusters[0];
+        if(mc){
+          const advice = mc.what_should_have_been_said || mc.fix || '';
+          const why    = mc.why_it_matters || '';
+          if(advice){
+            addSubHead('How to handle this better:', [20,130,90]);
+            addIndent(advice, 4, 9.5, [30,80,60]);
+            if(why) addIndent(why, 4, 8.5, [80,110,90]);
+          }
+        }
+      } else {
+        addSubHead('Keep doing this:', [20,130,90]);
+        addIndent('This opening approach created trust. Replicate this frame in tougher scenarios.', 4, 9.5, [30,80,60]);
+      }
+      addDivider();
+    });
+  }
+
+  if(pdfClusters.length){
+    addTitle('Failure Clusters');
+    pdfClusters.slice(0,5).forEach((f,i)=>{
+      addPara(`${i+1}. ${f.cluster_name||''} (${Math.round(f.frequency_pct||0)}% failures)`);
+      addPara(`Why: ${f.description||''}`, 9.5);
+      addPara(`Fix: ${f.fix||''}`, 9.5);
+    });
+    addDivider();
+  }
+
+  if((cr.top_improvements||[]).length){
+    addTitle('Top Improvements');
+    cr.top_improvements.slice(0,5).forEach((im,i)=>{
+      addPara(`${i+1}. ${im.improvement||''}`);
+      addPara(`Impact: ${im.expected_impact||''}`, 9.5);
+      addPara(`Drill: ${im.practice_drill||''}`, 9.5);
+    });
+    addDivider();
+  }
+
+  const plan = Array.isArray(fb['30_day_plan']) ? fb['30_day_plan'] : [];
+  if(plan.length){
+    addTitle('30-Day Plan');
+    plan.forEach(w=>{
+      addPara(`Week ${w.week||''}: ${w.focus||''}`);
+      if(w.daily_drill) addPara(`Daily drill: ${w.daily_drill}`, 9.5);
+    });
+  }
+
+  doc.save('digital-twin-coaching-report.pdf');
+}
+function switchMode(m){
+  document.getElementById('mode-video').style.display = m==='video'?'':'none';
+  document.getElementById('mode-twin').style.display  = m==='twin' ?'':'none';
+  document.getElementById('btn-video').classList.toggle('active', m==='video');
+  document.getElementById('btn-twin').classList.toggle('active',  m==='twin');
+  if(m==='twin' && twinAuthToken && !twinSchema) loadTwinForm();
+}
+</script>
+
+</div><!-- end #mode-twin -->
+</body>
+</html>
