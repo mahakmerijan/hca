@@ -1,10 +1,19 @@
 """
 Facial Expression Analyzer
 Detects emotions from facial expressions in video frames using DeepFace.
+DeepFace is optional — if not installed (e.g. on Render where tensorflow
+wheels are unavailable), the analyzer gracefully returns empty results and
+the Gemini-based counsellor takes over.
 """
 
 import numpy as np
-from deepface import DeepFace
+
+try:
+    from deepface import DeepFace
+    _DEEPFACE_AVAILABLE = True
+except ImportError:  # tensorflow / deepface not installed in this environment
+    DeepFace = None
+    _DEEPFACE_AVAILABLE = False
 
 
 # Mapping emotions to positivity scores (0-1 scale)
@@ -65,6 +74,14 @@ class FacialExpressionAnalyzer:
         Returns:
             Dict with dominant emotion and all emotion probabilities, or None.
         """
+        if not _DEEPFACE_AVAILABLE:
+            return {
+                "frame_idx": frame_idx,
+                "dominant_emotion": "neutral",
+                "emotions": {},
+                "face_detected": False,
+                "error": "deepface not installed",
+            }
         try:
             results = DeepFace.analyze(
                 frame,
