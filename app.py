@@ -41,6 +41,7 @@ def _services():
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
 app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)  # ensure dir exists for all workers
 
 ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "webm", "flv", "wmv"}
 
@@ -608,4 +609,5 @@ def user_insights(user_id):
 # ══════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     os.makedirs("uploads", exist_ok=True)
-    app.run(debug=False, host="127.0.0.1", port=5004)
+    port = int(os.environ.get("PORT", 5004))
+    app.run(debug=False, host="0.0.0.0", port=port)
