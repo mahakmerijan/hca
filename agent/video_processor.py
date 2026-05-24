@@ -6,7 +6,10 @@ Handles extracting frames and audio from the input video.
 import cv2
 import os
 import numpy as np
-from moviepy.editor import VideoFileClip
+try:
+    from moviepy import VideoFileClip  # moviepy v2.x
+except ImportError:
+    from moviepy.editor import VideoFileClip  # moviepy v1.x fallback
 
 
 class VideoProcessor:
