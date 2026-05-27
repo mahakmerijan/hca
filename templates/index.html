@@ -124,6 +124,27 @@ header p{color:var(--muted);margin-top:8px;font-size:.92rem;line-height:1.6;max-
 /* ─── Closing ─── */
 .closing-box{background:linear-gradient(135deg,var(--accentGlow),rgba(45,212,168,.06));border:1px solid rgba(124,106,246,.22);border-radius:14px;padding:24px 28px;text-align:center;font-size:.96rem;line-height:1.75;color:var(--white)}
 
+/* ─── Off-Moments Card ─── */
+.off-timeline{display:flex;flex-direction:column;gap:7px;margin-top:2px}
+.off-entry{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--card2);border-radius:10px;border-left:3px solid var(--red)}
+.off-entry.body-entry{border-left-color:var(--orange)}
+.off-ts{font-family:monospace;font-size:.8rem;font-weight:700;color:var(--accent2);white-space:nowrap;min-width:110px}
+.off-badge{font-size:.73rem;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.off-badge-face{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.28)}
+.off-badge-body{background:rgba(251,146,60,.13);color:var(--orange);border:1px solid rgba(251,146,60,.26)}
+.off-badge-filler{background:rgba(250,204,21,.13);color:var(--yellow);border:1px solid rgba(250,204,21,.28)}
+.off-badge-pace{background:rgba(251,146,60,.15);color:var(--orange);border:1px solid rgba(251,146,60,.32)}
+.off-badge-pause{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.26)}
+.off-entry.speech-entry{border-left-color:var(--yellow)}
+.off-frag{font-size:.78rem;color:#9fa6c0;font-style:italic;margin-top:4px;display:block;padding-left:2px}
+.off-reason-text{font-size:.82rem;color:#b0b5cc}
+.off-group-title{font-size:.9rem;font-weight:700;margin:16px 0 9px;display:flex;align-items:center;gap:8px}
+.speech-issues-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:8px}
+.speech-issue-item{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
+.speech-issue-item .si-label{font-size:.71rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.speech-issue-item .si-value{font-size:1rem;font-weight:700}
+.speech-issue-item .si-desc{font-size:.77rem;color:var(--muted);margin-top:4px;line-height:1.5}
+
 /* ─── Score Bars ─── */
 .bar-group{margin-bottom:14px}
 .bar-label{display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:5px}
@@ -572,6 +593,77 @@ function render(R){
   });
   barHTML+='</div>';
   resultsSec.insertAdjacentHTML('beforeend',barHTML);
+
+  /* 6.5 ─── Raw Off-Moments: Facial + Body + Speech ─── */
+  const _fps=(R.video_info||{}).fps||30;
+  function frameToTs(idx){const s=Math.round(idx/_fps),m=Math.floor(s/60),sec=s%60;return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
+  function mergeOff(frames,gapSecs=2){
+    if(!frames||!frames.length)return[];
+    const sorted=[...frames].sort((a,b)=>a.frame_idx-b.frame_idx);
+    const gap=gapSecs*_fps,out=[];let cur={...sorted[0],end_idx:sorted[0].frame_idx};
+    for(let i=1;i<sorted.length;i++){const f=sorted[i];if(f.reason===cur.reason&&f.frame_idx-cur.end_idx<=gap){cur.end_idx=f.frame_idx;}else{out.push(cur);cur={...f,end_idx:f.frame_idx};}}
+    out.push(cur);return out;
+  }
+  const facialOff=mergeOff((R.facial_analysis||{}).off_segments||[]);
+  const bodyOff=mergeOff((R.body_language_analysis||{}).off_frames||[]);
+  const _vf=(R.voice_speech_analysis||{}).audio_features||{};
+  const _sc=_vf.speech_content||{},_sr=_vf.speaking_rate||{},_pa=_vf.pauses||{};
+  const dialogueIssues=(R.voice_speech_analysis||{}).dialogue_issues||[];
+  const hasSpeechIssues=dialogueIssues.length>0||(_sc.filler_word_ratio||0)>0.05||(_sr.pace_label&&_sr.pace_label!=='ideal'&&_sr.pace_label!=='');
+  if(facialOff.length||bodyOff.length||hasSpeechIssues){
+    let offHTML='<div class="card slide-up"><h2>🚨 Where You Looked &amp; Sounded Off</h2>';
+    offHTML+='<p style="color:var(--muted);font-size:.83rem;margin:-8px 0 18px">Exact video timestamps where your facial expressions, posture or speech were misaligned — so you know precisely what to work on.</p>';
+    if(facialOff.length){
+      offHTML+='<div class="off-group-title"><span style="color:var(--red)">😬 Facial Expression Issues</span><span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+facialOff.length+' moment'+(facialOff.length!==1?'s':'')+')</span></div>';
+      offHTML+='<div class="off-timeline">';
+      facialOff.forEach(seg=>{
+        const ts=frameToTs(seg.frame_idx),tsEnd=seg.end_idx!==seg.frame_idx?' – '+frameToTs(seg.end_idx):'';
+        offHTML+=`<div class="off-entry"><span class="off-ts">⏱ ${esc(ts)}${esc(tsEnd)}</span>${seg.dominant_emotion?`<span class="off-badge off-badge-face">${esc(seg.dominant_emotion)}</span>`:''}<span class="off-reason-text">${esc(seg.reason||'')}</span></div>`;
+      });
+      offHTML+='</div>';
+    }
+    if(bodyOff.length){
+      offHTML+='<div class="off-group-title" style="margin-top:'+(facialOff.length?'20px':'4px')+'"><span style="color:var(--orange)">🧍 Body Language Issues</span><span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+bodyOff.length+' moment'+(bodyOff.length!==1?'s':'')+')</span></div>';
+      offHTML+='<div class="off-timeline">';
+      bodyOff.forEach(fr=>{
+        const ts=frameToTs(fr.frame_idx),tsEnd=fr.end_idx!==fr.frame_idx?' – '+frameToTs(fr.end_idx):'';
+        const detail=fr.confidence_score!=null?' · confidence '+fr.confidence_score:fr.openness!=null?' · openness '+fr.openness:fr.shoulder_alignment!=null?' · alignment '+fr.shoulder_alignment:'';
+        offHTML+=`<div class="off-entry body-entry"><span class="off-ts">⏱ ${esc(ts)}${esc(tsEnd)}</span><span class="off-badge off-badge-body">${esc(fr.reason||'')}${esc(detail)}</span></div>`;
+      });
+      offHTML+='</div>';
+    }
+    if(hasSpeechIssues){
+      const speechCount=dialogueIssues.length;
+      offHTML+='<div class="off-group-title" style="margin-top:20px"><span style="color:var(--yellow)">🎤 Dialogue &amp; Speech Issues</span>'+(speechCount?'<span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+speechCount+' moment'+(speechCount!==1?'s':'')+')</span>':'')+'</div>';
+      if(dialogueIssues.length){
+        offHTML+='<div class="off-timeline">';
+        dialogueIssues.forEach(di=>{
+          const tsEnd=di.end_timestamp&&di.end_timestamp!==di.timestamp?' – '+esc(di.end_timestamp):'';
+          const badgeClass=di.issue_type==='filler'?'off-badge-filler':di.issue_type==='pace'?'off-badge-pace':'off-badge-pause';
+          const icon=di.issue_type==='filler'?'💬':di.issue_type==='pace'?'⚡':'⏸';
+          let entryHTML=`<div class="off-entry speech-entry"><span class="off-ts">⏱ ${esc(di.timestamp)}${tsEnd}</span><span class="off-badge ${badgeClass}">${icon} ${esc(di.reason||'')}</span>`;
+          if(di.text_fragment) entryHTML+=`<span class="off-frag">${esc(di.text_fragment)}</span>`;
+          entryHTML+='</div>';
+          offHTML+=entryHTML;
+        });
+        offHTML+='</div>';
+      } else {
+        /* fallback aggregate if no per-segment data */
+        offHTML+='<div class="speech-issues-grid">';
+        if((_sc.filler_word_count||0)>0){
+          const bc=(_sc.filler_word_ratio||0)>0.15?'var(--red)':(_sc.filler_word_ratio||0)>0.05?'var(--yellow)':'var(--muted)';
+          offHTML+=`<div class="speech-issue-item"><div class="si-label">Filler Words</div><div class="si-value" style="color:${bc}">${_sc.filler_word_count} used</div><div class="si-desc">${((_sc.filler_word_ratio||0)*100).toFixed(1)}% of speech — aim for &lt;5%</div></div>`;
+        }
+        if(_sr.pace_label&&_sr.pace_label!=='ideal'&&_sr.pace_label!==''){
+          const pc=_sr.pace_label.startsWith('very')?'var(--red)':'var(--yellow)';
+          offHTML+=`<div class="speech-issue-item"><div class="si-label">Speaking Pace</div><div class="si-value" style="color:${pc}">${esc(_sr.pace_label.replace(/_/g,' '))}</div><div class="si-desc">${(_sr.estimated_syllables_per_sec||0).toFixed(1)} syllables/sec — ideal: 3–5</div></div>`;
+        }
+        offHTML+='</div>';
+      }
+    }
+    offHTML+='</div>';
+    resultsSec.insertAdjacentHTML('beforeend',offHTML);
+  }
 
   /* 7 ─── Improvement Plan (with training loops) ─── */
   const plan=C.improvement_plan||[];

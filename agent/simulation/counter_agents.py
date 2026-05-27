@@ -29,9 +29,11 @@ _client: Optional[object] = None
 def _get_client():
     global _client
     if _client is None and GENAI_AVAILABLE:
-        api_key = os.getenv("GOOGLE_API_KEY", "")
-        if api_key:
-            _client = genai.Client(api_key=api_key)
+        _client = genai.Client(
+            vertexai=True,
+            project=os.getenv("VERTEX_PROJECT", "ai-ml-integrations"),
+            location=os.getenv("VERTEX_LOCATION", "us-central1"),
+        )
     return _client
 
 

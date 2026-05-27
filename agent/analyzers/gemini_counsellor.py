@@ -250,18 +250,20 @@ def _build_analysis_context(results: dict, user_context: dict = None) -> str:
 
 class GeminiCounsellor:
     def __init__(self):
-        self.api_key = os.getenv("GOOGLE_API_KEY", "")
         self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-pro")
+        self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
+        self._location = os.getenv("VERTEX_LOCATION", "us-central1")
         self.available = False
 
         if not GENAI_AVAILABLE:
             print("[GeminiCounsellor] google-genai not installed.")
             return
-        if not self.api_key:
-            print("[GeminiCounsellor] GOOGLE_API_KEY not set in .env")
-            return
 
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client(
+            vertexai=True,
+            project=self._project,
+            location=self._location,
+        )
         self.available = True
         print(f"[GeminiCounsellor] Ready — model={self.model_name}")
 
@@ -304,21 +306,97 @@ class GeminiCounsellor:
             return self._fallback(analysis_results)
 
     def _fallback(self, results: dict) -> dict:
+        def _fmt_strength(s: str) -> dict:
+            return {"title": s, "detail": s}
+
+        def _fmt_weakness(w: str) -> dict:
+            # Turn a plain sentence into a short title + detail pair
+            # Trim at first colon, dash, or after ~6 words for the title
+            words = w.split()
+            title = " ".join(words[:6]) + ("…" if len(words) > 6 else "")
+            return {"title": title, "detail": w}
+
         pred = results.get("final_predictions", {})
         prof = results.get("behavioral_profile", {})
         bp = lambda k: pred.get(k, {}).get("probability", 50)
         avg = int((bp("job_interview") + bp("business_deal")) / 2)
 
+        # ── Compute real layer scores from raw analysis data ──────────────────
+        fa  = results.get("facial_analysis", {})
+        bl  = results.get("body_language_analysis", {})
+        vs  = results.get("voice_speech_analysis", {})
+        vf  = vs.get("audio_features", {})
+
+        # Non-Verbal Intelligence: average of facial scenario scores
+        fa_scores = fa.get("scenario_scores", {})
+        nvi_score = int(round(
+            sum(fa_scores.get(k, 50) for k in ("job_interview", "business_deal", "date")) / 3
+        )) if fa_scores else 50
+
+        # Behavioral Signals: weighted body-language metrics
+        am = bl.get("average_metrics", {})
+        if am:
+            beh_score = int(round(
+                am.get("avg_confidence_score", 0.5) * 40 * 100 / 100 +
+                am.get("avg_openness", 0.5) * 25 * 100 / 100 +
+                am.get("avg_shoulder_alignment", 0.5) * 20 * 100 / 100 +
+                (1.0 - am.get("arms_crossed_ratio", 0.0)) * 15 * 100 / 100
+            ))
+            beh_score = min(max(beh_score, 0), 100)
+        else:
+            bl_scores = bl.get("scenario_scores", {})
+            beh_score = int(round(
+                sum(bl_scores.get(k, 50) for k in ("job_interview", "business_deal", "date")) / 3
+            )) if bl_scores else 50
+
+        # Verbal Intelligence: voice/speech composite
+        if vf.get("audio_loaded"):
+            pitch     = vf.get("pitch", {})
+            energy    = vf.get("energy", {})
+            rate      = vf.get("speaking_rate", {})
+            pauses    = vf.get("pauses", {})
+            content   = vf.get("speech_content", {})
+            verb_score = int(round(
+                pitch.get("pitch_stability", 0.5)      * 15 +
+                energy.get("energy_consistency", 0.5)  * 15 +
+                rate.get("pace_score", 0.5)            * 25 +
+                pauses.get("pause_score", 0.5)         * 20 +
+                content.get("content_score", 0.5)      * 25
+            ) * 100 / 100)
+            verb_score = min(max(verb_score, 0), 100)
+        else:
+            vs_scores = vs.get("scenario_scores", {})
+            verb_score = int(round(
+                sum(vs_scores.get(k, 50) for k in ("job_interview", "business_deal", "date")) / 3
+            )) if vs_scores else 50
+
+        # ── Derive short human-readable summaries ─────────────────────────────
+        smile_pct  = int(fa.get("smile_ratio", 0) * 100)
+        emo_dist   = fa.get("emotion_distribution") or {"neutral": 1}
+        top_emo    = max(emo_dist, key=lambda k: emo_dist[k])
+        conf_val   = am.get("avg_confidence_score", 0) if am else 0
+        pace_label = vf.get("speaking_rate", {}).get("pace_label", "unknown") if vf.get("audio_loaded") else "no audio"
+        filler_pct = int(vf.get("speech_content", {}).get("filler_word_ratio", 0) * 100) if vf.get("audio_loaded") else 0
+
+        verb_summary  = (f"Speaking pace is {pace_label.replace('_',' ')}; "
+                         f"{filler_pct}% filler words detected. "
+                         + ("Good vocal clarity." if verb_score >= 65 else "Speech delivery needs refinement."))
+        nvi_summary   = (f"Dominant emotion: {top_emo}; smile ratio {smile_pct}%. "
+                         + ("Expressions generally positive." if nvi_score >= 65 else "Facial expressions appear tense or flat."))
+        beh_summary   = (f"Confidence score {int(conf_val*100)}/100; "
+                         + (f"arms crossed {int(am.get('arms_crossed_ratio',0)*100)}% of the time. " if am else "")
+                         + ("Body language projects confidence." if beh_score >= 65 else "Posture and gestures need more openness."))
+
         return {
             "overall_summary": prof.get("overall_impression", "Analysis complete."),
-            "personality_snapshot": f"Dominant emotion: {prof.get('dominant_emotion','neutral')}.",
+            "personality_snapshot": f"Dominant emotion: {prof.get('dominant_emotion', 'neutral')}.",
             "three_layer_analysis": {
-                "verbal_intelligence": {"score": 50, "summary": "Verbal data being processed.", "what_worked": [], "what_didnt": [], "improvements": []},
-                "non_verbal_intelligence": {"score": 50, "summary": "Non-verbal data being processed.", "what_worked": [], "what_didnt": [], "improvements": []},
-                "behavioral_signals": {"score": 50, "summary": "Behavioral data being processed.", "what_worked": [], "what_didnt": [], "improvements": []}
+                "verbal_intelligence":    {"score": verb_score, "summary": verb_summary,  "what_worked": [], "what_didnt": [], "improvements": []},
+                "non_verbal_intelligence":{"score": nvi_score,  "summary": nvi_summary,   "what_worked": [], "what_didnt": [], "improvements": []},
+                "behavioral_signals":     {"score": beh_score,  "summary": beh_summary,   "what_worked": [], "what_didnt": [], "improvements": []},
             },
-            "strengths": [{"title": s, "detail": s} for s in prof.get("strengths", [])] or [{"title": "Baseline competency", "detail": "Shows baseline competency."}],
-            "weaknesses": [{"title": w, "detail": w} for w in prof.get("areas_for_improvement", [])] or [{"title": "No major issues", "detail": "No major concerns identified."}],
+            "strengths": [_fmt_strength(s) for s in prof.get("strengths", [])] or [{"title": "Baseline competency", "detail": "Shows baseline competency."}],
+            "weaknesses": [_fmt_weakness(w) for w in prof.get("areas_for_improvement", [])] or [{"title": "No major issues", "detail": "No major concerns identified."}],
             "scenarios": {
                 "closing_deal": {"probability": bp("business_deal"), "verdict": "Moderate chance", "what_worked": "Shows engagement.", "what_didnt": "Needs stronger persuasion signals.", "coaching_advice": "Focus on structured pitching and active listening to close deals more effectively."},
                 "getting_promoted": {"probability": bp("job_interview"), "verdict": "Moderate chance", "what_worked": "Projects some authority.", "what_didnt": "Needs stronger executive presence.", "coaching_advice": "Work on projecting confidence, clarity, and strategic thinking."},

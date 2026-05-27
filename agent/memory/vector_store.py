@@ -45,10 +45,13 @@ def _embed_text(text: str) -> List[float]:
     Generate a text embedding. Uses Gemini text-embedding-004 if available,
     falls back to a deterministic hash-based pseudo-embedding for local dev.
     """
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if GENAI_AVAILABLE and api_key:
+    if GENAI_AVAILABLE:
         try:
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(
+                vertexai=True,
+                project=os.getenv("VERTEX_PROJECT", "ai-ml-integrations"),
+                location=os.getenv("VERTEX_LOCATION", "us-central1"),
+            )
             result = client.models.embed_content(
                 model="models/text-embedding-004",
                 contents=text,

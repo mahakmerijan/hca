@@ -6,9 +6,27 @@ Integrates Gemini AI as a personal counsellor.
 
 import json
 import os
+import tempfile
 import uuid
 import threading
 from datetime import datetime
+
+# ── Render / cloud: materialise GCP service-account credentials ──────────────
+# On Render, set GCP_SERVICE_ACCOUNT_JSON to the full JSON content.
+# GOOGLE_APPLICATION_CREDENTIALS cannot point to a file that doesn't exist on
+# the ephemeral container, so we write the JSON to a temp file at startup.
+_gcp_json_str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "")
+if _gcp_json_str and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    try:
+        _gcp_tmp = tempfile.NamedTemporaryFile(
+            delete=False, suffix=".json", mode="w"
+        )
+        _gcp_tmp.write(_gcp_json_str)
+        _gcp_tmp.close()
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _gcp_tmp.name
+    except Exception as _e:
+        print(f"[Startup] Could not write GCP credentials temp file: {_e}")
+# ─────────────────────────────────────────────────────────────────────────────
 
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
@@ -40,8 +58,6 @@ def _services():
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
-app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)  # ensure dir exists for all workers
 
 ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "webm", "flv", "wmv"}
 
@@ -141,6 +157,7 @@ def _build_conversation_gists(simulation_results: list, limit: int = 5) -> list:
 def _run_analysis(job_id: str, video_path: str):
     """Background worker — runs full analysis pipeline then Gemini counselling."""
     user_context = user_contexts.get(job_id)
+    audio_tmp_path = None
     try:
         jobs[job_id]["status"] = "processing"
         jobs[job_id]["progress"] = "Loading video…"
@@ -157,20 +174,22 @@ def _run_analysis(job_id: str, video_path: str):
         ).VideoProcessor(video_path, agent.frame_sample_rate)
         agent.results["video_info"] = agent.video_processor.get_video_info()
 
-        # Step 2 – extract frames
-        jobs[job_id]["progress"] = "Extracting frames…"
-        frames = agent.video_processor.extract_frames()
+        # Step 2 – estimate sampled frames
+        jobs[job_id]["progress"] = "Preparing video frames…"
+        sampled_frame_count = agent.video_processor.get_sampled_frame_count()
 
-        # Step 3 – extract audio
+        # Step 3 – extract audio into a temp file (no uploads/ directory needed)
         jobs[job_id]["progress"] = "Extracting audio…"
-        audio_out = os.path.join("uploads", f"{job_id}_audio.wav")
-        audio_path_result = agent.video_processor.extract_audio(audio_out)
+        audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        audio_tmp_path = audio_tmp.name
+        audio_tmp.close()
+        audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
         # Step 4 – facial expressions
         jobs[job_id]["progress"] = "Analyzing facial expressions…"
         from agent.analyzers.facial_expression import FacialExpressionAnalyzer
         agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        for idx, frame in frames:
+        for idx, frame in agent.video_processor.iter_frames():
             agent.facial_analyzer.analyze_frame(frame, idx)
         agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
 
@@ -178,7 +197,7 @@ def _run_analysis(job_id: str, video_path: str):
         jobs[job_id]["progress"] = "Analyzing body language…"
         from agent.analyzers.body_language import BodyLanguageAnalyzer
         agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
-        for idx, frame in frames:
+        for idx, frame in agent.video_processor.iter_frames():
             agent.body_analyzer.analyze_frame(frame, idx)
         agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
 
@@ -200,7 +219,7 @@ def _run_analysis(job_id: str, video_path: str):
         counselling = gemini_counsellor.generate_counselling(agent.results, user_context)
         agent.results["counselling"] = counselling
 
-        # Cleanup
+        # Cleanup analyzers
         if agent.body_analyzer:
             agent.body_analyzer.release()
         if agent.video_processor:
@@ -217,6 +236,14 @@ def _run_analysis(job_id: str, video_path: str):
         jobs[job_id]["status"] = "error"
         jobs[job_id]["progress"] = f"Error: {exc}"
         jobs[job_id]["error"] = str(exc)
+    finally:
+        # Delete temp files — frees disk regardless of success or failure
+        for tmp_path in (video_path, audio_tmp_path):
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
 
 # ──────────────────────────── Routes ────────────────────────────
@@ -238,19 +265,19 @@ def upload_video():
     if not allowed_file(file.filename):
         return jsonify({"error": f"File type not allowed. Use: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
 
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
     # Reuse pre-initialised job_id if provided (context was already saved to it)
     job_id = request.form.get("job_id") or uuid.uuid4().hex[:12]
     ext = file.filename.rsplit(".", 1)[1].lower()
-    filename = f"{job_id}.{ext}"
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(filepath)
+    # Write to a named temp file — no permanent uploads/ directory needed
+    tmp_video = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
+    file.save(tmp_video.name)
+    tmp_video.close()
 
     # Initialise job
     jobs[job_id] = {"status": "queued", "progress": "Queued…", "results": None, "error": None}
 
-    # Kick off background analysis
-    t = threading.Thread(target=_run_analysis, args=(job_id, filepath), daemon=True)
+    # Kick off background analysis (temp file path is cleaned up inside the worker)
+    t = threading.Thread(target=_run_analysis, args=(job_id, tmp_video.name), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id})

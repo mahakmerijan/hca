@@ -3,12 +3,15 @@ Body Language Analyzer
 Uses MediaPipe Pose (Tasks API) to analyze posture, gestures, and body language confidence.
 """
 
+import logging
 import math
 import os
 import urllib.request
 import numpy as np
 import mediapipe as mp
 import cv2
+
+logger = logging.getLogger(__name__)
 
 BaseOptions = mp.tasks.BaseOptions
 PoseLandmarker = mp.tasks.vision.PoseLandmarker
@@ -38,6 +41,10 @@ class BodyLanguageAnalyzer:
     def __init__(self, confidence_threshold: float = 0.5):
         self.confidence_threshold = confidence_threshold
         self.frame_results = []
+        self.available = True
+        self.error_message = None
+        self.pose_landmarker = None
+        self.hand_landmarker = None
 
         # Download models
         models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "models")
@@ -47,24 +54,35 @@ class BodyLanguageAnalyzer:
         _download_model(POSE_MODEL_URL, self.pose_model_path)
         _download_model(HAND_MODEL_URL, self.hand_model_path)
 
-        # Create Pose Landmarker
-        pose_options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=self.pose_model_path),
-            running_mode=VisionRunningMode.IMAGE,
-            min_pose_detection_confidence=confidence_threshold,
-            min_tracking_confidence=confidence_threshold,
-        )
-        self.pose_landmarker = PoseLandmarker.create_from_options(pose_options)
+        try:
+            # Create Pose Landmarker
+            pose_options = PoseLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=self.pose_model_path),
+                running_mode=VisionRunningMode.IMAGE,
+                min_pose_detection_confidence=confidence_threshold,
+                min_tracking_confidence=confidence_threshold,
+            )
+            self.pose_landmarker = PoseLandmarker.create_from_options(pose_options)
 
-        # Create Hand Landmarker
-        hand_options = HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=self.hand_model_path),
-            running_mode=VisionRunningMode.IMAGE,
-            min_hand_detection_confidence=confidence_threshold,
-            min_tracking_confidence=confidence_threshold,
-            num_hands=2,
-        )
-        self.hand_landmarker = HandLandmarker.create_from_options(hand_options)
+            # Create Hand Landmarker
+            hand_options = HandLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=self.hand_model_path),
+                running_mode=VisionRunningMode.IMAGE,
+                min_hand_detection_confidence=confidence_threshold,
+                min_tracking_confidence=confidence_threshold,
+                num_hands=2,
+            )
+            self.hand_landmarker = HandLandmarker.create_from_options(hand_options)
+        except Exception as exc:
+            self.available = False
+            self.error_message = str(exc)
+            logger.warning(
+                "BodyLanguageAnalyzer fallback engaged: MediaPipe unavailable (%s)",
+                self.error_message,
+            )
+            print(
+                f"[BodyLanguageAnalyzer] MediaPipe not available. Body language analysis will run in fallback mode: {self.error_message}"
+            )
 
     def _calculate_angle(self, a, b, c) -> float:
         """Calculate angle at point b given three landmark points (x,y)."""
@@ -212,6 +230,11 @@ class BodyLanguageAnalyzer:
 
     def analyze_frame(self, frame: np.ndarray, frame_idx: int) -> dict:
         """Analyze body language in a single frame."""
+        if not self.available:
+            result = self._analyze_frame_fallback(frame, frame_idx)
+            self.frame_results.append(result)
+            return result
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         results = self.pose_landmarker.detect(mp_image)
@@ -326,11 +349,81 @@ class BodyLanguageAnalyzer:
             ) / len(all_conf)
             avg_metrics["arms_crossed_ratio"] = round(arms_crossed_ratio, 3)
 
-        return {
+        summary = {
             "total_frames_analyzed": len(self.frame_results),
             "pose_detected_count": pose_detected_count,
             "average_metrics": avg_metrics,
             "scenario_scores": self.get_body_language_score(),
+            "off_frames": self.get_off_frames(),
+        }
+        if not self.available:
+            summary["analysis_mode"] = "fallback"
+            summary["error"] = self.error_message
+        return summary
+
+    def get_off_frames(self) -> list[dict]:
+        """Return body-language frames that may feel off due to low confidence or closed posture."""
+        off_frames = []
+        for fr in self.frame_results:
+            if not fr.get("pose_detected"):
+                off_frames.append({
+                    "frame_idx": fr["frame_idx"],
+                    "reason": "pose not detected",
+                })
+                continue
+
+            confidence = fr.get("confidence_signals", {}).get("confidence_score", 0)
+            openness = fr.get("posture", {}).get("openness", 1)
+            shoulder_alignment = fr.get("posture", {}).get("shoulder_alignment", 1)
+            head_uprightness = fr.get("posture", {}).get("head_uprightness", 1)
+            arms_crossed = fr.get("confidence_signals", {}).get("arms_crossed", False)
+
+            if confidence < 0.45:
+                off_frames.append({
+                    "frame_idx": fr["frame_idx"],
+                    "confidence_score": round(confidence, 3),
+                    "reason": "low confidence body posture",
+                })
+                continue
+            if openness < 0.35:
+                off_frames.append({
+                    "frame_idx": fr["frame_idx"],
+                    "openness": round(openness, 3),
+                    "reason": "closed posture",
+                })
+                continue
+            if shoulder_alignment < 0.4 or head_uprightness < 0.4:
+                off_frames.append({
+                    "frame_idx": fr["frame_idx"],
+                    "shoulder_alignment": round(shoulder_alignment, 3),
+                    "head_uprightness": round(head_uprightness, 3),
+                    "reason": "uneven posture",
+                })
+                continue
+            if arms_crossed:
+                off_frames.append({
+                    "frame_idx": fr["frame_idx"],
+                    "reason": "arms crossed",
+                })
+
+        return off_frames
+
+    def _analyze_frame_fallback(self, frame: np.ndarray, frame_idx: int) -> dict:
+        """Produce a lightweight fallback result when MediaPipe is unavailable."""
+        return {
+            "frame_idx": frame_idx,
+            "pose_detected": False,
+            "posture": {},
+            "hand_gestures": {
+                "hands_visible": 0,
+                "gesture_activity": 0.0,
+                "hands_open": False,
+            },
+            "confidence_signals": {
+                "confidence_score": 0.5,
+            },
+            "analysis_mode": "fallback",
+            "error": self.error_message,
         }
 
     def release(self):

@@ -44,13 +44,17 @@ _GENAI_CLIENT = None
 _GENAI_CLIENT_LOCK = threading.Lock()
 
 
-def _get_genai_client(api_key: str):
+def _get_genai_client():
     global _GENAI_CLIENT
     if _GENAI_CLIENT is not None:
         return _GENAI_CLIENT
     with _GENAI_CLIENT_LOCK:
         if _GENAI_CLIENT is None:
-            _GENAI_CLIENT = genai.Client(api_key=api_key)
+            _GENAI_CLIENT = genai.Client(
+                vertexai=True,
+                project=os.getenv("VERTEX_PROJECT", "ai-ml-integrations"),
+                location=os.getenv("VERTEX_LOCATION", "us-central1"),
+            )
     return _GENAI_CLIENT
 
 
@@ -74,15 +78,13 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str) -> str:
     Generate the Digital Twin's response using the persona's system prompt
     and the cached Gemini context (if available).
     """
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    # Use flash model for simulation turns — gemini-2.5-pro is a thinking model
-    # whose thinking tokens consume max_output_tokens, leaving nothing for the response.
-    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
-
-    if not GENAI_AVAILABLE or not api_key:
+    if not GENAI_AVAILABLE:
         return "[Twin response — Gemini unavailable]"
 
-    client = _get_genai_client(api_key)
+    # Use flash model for simulation turns — gemini-2.5-pro thinking tokens
+    # consume max_output_tokens, leaving nothing for the actual response.
+    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
+    client = _get_genai_client()
     system = twin_persona.get("system_prompt") or "You are a digital twin. Respond authentically in 2-4 sentences."
     if not system or len(system) < 10:
         print(f"[SimLoop] WARNING: twin_persona has no/empty system_prompt. Keys: {list(twin_persona.keys())}")

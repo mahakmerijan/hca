@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .Python
 venv/
+venv312/
 env/
 *.egg-info/
 dist/
@@ -24,13 +25,25 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Secrets — NEVER commit these
+.env
+gcp_service*.json
+*.json.key
+service_account*.json
+
 # Large model files (binary, not useful in git)
 models/*.task
 
-# Outputs
+# Datasets — training data, not needed at runtime
+datasets/
+
+# Outputs & uploads
 output/
+uploads/
+
+# Twins store (runtime state, not source code)
+output/twins_store.json
 
 # External repos (too large)
 external_repos/
 
-# Secrets already excluded via .env above

@@ -66,12 +66,17 @@ class RefereeAgent:
     """Grades each micro-simulation on alignment, friction, and outcome."""
 
     def __init__(self):
-        self.api_key = os.getenv("GOOGLE_API_KEY", "")
         # Use flash model — gemini-2.5-pro thinking tokens starve output budget
         self.model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
-        self.available = GENAI_AVAILABLE and bool(self.api_key)
+        self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
+        self._location = os.getenv("VERTEX_LOCATION", "us-central1")
+        self.available = GENAI_AVAILABLE
         if self.available:
-            self.client = genai.Client(api_key=self.api_key)
+            self.client = genai.Client(
+                vertexai=True,
+                project=self._project,
+                location=self._location,
+            )
 
     def grade(
         self,

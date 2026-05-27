@@ -95,9 +95,9 @@ class BehaviorAnalysisAgent:
             return self.results
 
         # ─── Step 2: Extract Frames ───
-        self._print_step(2, total_steps, "Extracting video frames...")
-        frames = self.video_processor.extract_frames()
-        console.print(f"    [green]✓[/green] Extracted {len(frames)} frames "
+        self._print_step(2, total_steps, "Preparing video frames...")
+        sampled_frame_count = self.video_processor.get_sampled_frame_count()
+        console.print(f"    [green]✓[/green] Will analyze approximately {sampled_frame_count} sampled frames "
                       f"(1 every {self.frame_sample_rate} frames)")
 
         # ─── Step 3: Extract Audio ───
@@ -119,8 +119,8 @@ class BehaviorAnalysisAgent:
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("    Detecting emotions...", total=len(frames))
-            for idx, frame in frames:
+            task = progress.add_task("    Detecting emotions...", total=sampled_frame_count)
+            for idx, frame in self.video_processor.iter_frames():
                 self.facial_analyzer.analyze_frame(frame, idx)
                 progress.advance(task)
 
@@ -144,8 +144,8 @@ class BehaviorAnalysisAgent:
             console=console,
             transient=True,
         ) as progress:
-            task = progress.add_task("    Analyzing posture...", total=len(frames))
-            for idx, frame in frames:
+            task = progress.add_task("    Analyzing posture...", total=sampled_frame_count)
+            for idx, frame in self.video_processor.iter_frames():
                 self.body_analyzer.analyze_frame(frame, idx)
                 progress.advance(task)
 
@@ -265,6 +265,13 @@ class BehaviorAnalysisAgent:
         else:
             return "F"
 
+    def _frame_idx_to_timestamp(self, frame_idx: int) -> str:
+        fps = float(self.results.get("video_info", {}).get("fps", 30) or 30)
+        seconds = frame_idx / fps if fps > 0 else frame_idx
+        total_seconds = int(round(seconds))
+        minutes, secs = divmod(total_seconds, 60)
+        return f"{minutes:02d}:{secs:02d}"
+
     def _build_behavioral_profile(self):
         """Build a human-readable behavioral profile."""
         predictions = self.results.get("final_predictions", {})
@@ -326,11 +333,24 @@ class BehaviorAnalysisAgent:
             if content.get("vocabulary_richness", 0) > 0.6:
                 strengths.append("Rich and varied vocabulary")
 
+        off_section_texts = []
+        for seg in facial.get("off_segments", [])[:3]:
+            off_section_texts.append(
+                f"{self._frame_idx_to_timestamp(seg['frame_idx'])} — {seg['dominant_emotion']} ({seg['reason']})"
+            )
+        for seg in body.get("off_frames", [])[:3]:
+            off_section_texts.append(
+                f"{self._frame_idx_to_timestamp(seg['frame_idx'])} — {seg['reason']}"
+            )
+        # off_section_texts are stored in behavioral_profile["off_sections"]
+        # and rendered in the dedicated UI card — do NOT add to improvements list
+
         self.results["behavioral_profile"] = {
             "dominant_emotion": top_emotion,
             "smile_ratio": smile_ratio,
             "strengths": strengths if strengths else ["Shows baseline competency across all areas"],
             "areas_for_improvement": improvements if improvements else ["No major areas of concern identified"],
+            "off_sections": off_section_texts,
             "overall_impression": self._generate_impression(predictions),
         }
 
@@ -516,6 +536,11 @@ class BehaviorAnalysisAgent:
             for s in profile.get("areas_for_improvement", []):
                 f.write(f"    → {s}\n")
             f.write(f"\n  Overall Impression:\n    {profile.get('overall_impression', '')}\n")
+
+            if profile.get("off_sections"):
+                f.write("\n  Video Segments That Felt Off:\n")
+                for off in profile.get("off_sections", []):
+                    f.write(f"    - {off}\n")
 
             f.write("\n" + "=" * 70 + "\n")
             f.write("  Full JSON data saved to: output/analysis_data.json\n")

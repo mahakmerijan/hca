@@ -51,7 +51,21 @@ class VideoProcessor:
         Returns:
             List of (frame_index, frame_image) tuples.
         """
-        frames = []
+        return list(self.iter_frames())
+
+    def get_sampled_frame_count(self) -> int:
+        """Return the estimated number of sampled frames for this video."""
+        if self.frame_sample_rate <= 0:
+            return self.total_frames
+        return max(1, (self.total_frames + self.frame_sample_rate - 1) // self.frame_sample_rate)
+
+    def iter_frames(self):
+        """
+        Lazily iterate sampled frames from the video.
+
+        Yields:
+            Tuples of (frame_index, frame_image).
+        """
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         frame_idx = 0
 
@@ -60,10 +74,8 @@ class VideoProcessor:
             if not ret:
                 break
             if frame_idx % self.frame_sample_rate == 0:
-                frames.append((frame_idx, frame))
+                yield frame_idx, frame
             frame_idx += 1
-
-        return frames
 
     def extract_audio(self, output_path: str = "output/audio.wav") -> str | None:
         """
@@ -75,7 +87,9 @@ class VideoProcessor:
         Returns:
             Path to the extracted audio file, or None if no audio.
         """
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        dir_name = os.path.dirname(output_path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         try:
             clip = VideoFileClip(self.video_path)
             if clip.audio is None:

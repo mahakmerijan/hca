@@ -330,4 +330,97 @@ class VoiceSpeechAnalyzer:
             "scenario_scores": self.get_voice_score(),
             "transcript_available": bool(self.transcript),
             "full_transcript": self.transcript,
+            "dialogue_issues": self.analyze_dialogue_issues(),
         }
+
+    def _seconds_to_ts(self, seconds: float) -> str:
+        total_s = int(round(seconds))
+        m, s = divmod(total_s, 60)
+        return f"{m:02d}:{s:02d}"
+
+    def analyze_dialogue_issues(self) -> list:
+        """
+        Return timestamped list of specific dialogue moments that felt off:
+        - Filler words with estimated position and surrounding context
+        - Segments where pace was too fast or too slow
+        - Long hesitation pauses (>1.5s)
+        """
+        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
+            return []
+
+        issues = []
+        FILLER_WORDS = {"um", "uh", "like", "you know", "basically", "actually",
+                        "literally", "honestly", "right", "so", "well", "er", "ah"}
+        SEGMENT_SEC = 5.0
+
+        # ── 1. Per-segment pace & long-pause detection ────────────────────────
+        total_segs = int(self.duration / SEGMENT_SEC) + 1
+        for seg_idx in range(total_segs):
+            t0 = seg_idx * SEGMENT_SEC
+            t1 = min(t0 + SEGMENT_SEC, self.duration)
+            if t1 <= t0:
+                break
+            s0, s1 = int(t0 * self.sr_rate), int(t1 * self.sr_rate)
+            y_seg = self.y[s0:s1]
+
+            try:
+                onsets = librosa.onset.onset_detect(y=y_seg, sr=self.sr_rate)
+                sps = len(onsets) / (t1 - t0)
+                if sps > 6.5:
+                    issues.append({
+                        "timestamp": self._seconds_to_ts(t0),
+                        "end_timestamp": self._seconds_to_ts(t1),
+                        "issue_type": "pace",
+                        "reason": f"speaking too fast ({sps:.1f} syllables/sec — aim for 3–5)",
+                        "text_fragment": "",
+                    })
+                elif 0 < sps < 1.5:
+                    issues.append({
+                        "timestamp": self._seconds_to_ts(t0),
+                        "end_timestamp": self._seconds_to_ts(t1),
+                        "issue_type": "pace",
+                        "reason": f"speaking too slow ({sps:.1f} syllables/sec — aim for 3–5)",
+                        "text_fragment": "",
+                    })
+            except Exception:
+                pass
+
+            try:
+                intervals = librosa.effects.split(y_seg, top_db=30)
+                for i in range(1, len(intervals)):
+                    gap_samples = intervals[i][0] - intervals[i - 1][1]
+                    pause_dur = gap_samples / self.sr_rate
+                    if pause_dur > 1.5:
+                        pause_abs = t0 + intervals[i - 1][1] / self.sr_rate
+                        issues.append({
+                            "timestamp": self._seconds_to_ts(pause_abs),
+                            "end_timestamp": self._seconds_to_ts(pause_abs + pause_dur),
+                            "issue_type": "pause",
+                            "reason": f"long silence ({pause_dur:.1f}s — sounds hesitant)",
+                            "text_fragment": "",
+                        })
+            except Exception:
+                pass
+
+        # ── 2. Filler-word positions estimated from word distribution ─────────
+        if self.transcript:
+            words = self.transcript.lower().split()
+            total_words = len(words)
+            if total_words > 0:
+                word_dur = self.duration / total_words  # avg seconds per word
+                for wi, word in enumerate(words):
+                    if word in FILLER_WORDS:
+                        t_est = wi * word_dur
+                        ctx_start = max(0, wi - 3)
+                        ctx_end = min(total_words, wi + 4)
+                        context = " ".join(words[ctx_start:ctx_end])
+                        issues.append({
+                            "timestamp": self._seconds_to_ts(t_est),
+                            "end_timestamp": self._seconds_to_ts(min(t_est + word_dur, self.duration)),
+                            "issue_type": "filler",
+                            "reason": f'filler word: "{word}"',
+                            "text_fragment": f"…{context}…",
+                        })
+
+        issues.sort(key=lambda x: x["timestamp"])
+        return issues

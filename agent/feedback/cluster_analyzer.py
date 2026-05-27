@@ -54,9 +54,9 @@ try:
 except ImportError:
     LANGGRAPH_AVAILABLE = False
 
-# ── LangChain model wrapper (Google Gemini) ───────────────────────
+# ── LangChain model wrapper (Vertex AI) ──────────────────────────
 try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_google_vertexai import ChatVertexAI
     LANGCHAIN_GOOGLE_AVAILABLE = True
 except ImportError:
     LANGCHAIN_GOOGLE_AVAILABLE = False
@@ -226,26 +226,32 @@ class FailureClusterAnalyzer:
     """
 
     def __init__(self):
-        self.api_key    = os.getenv("GOOGLE_API_KEY", "")
         self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-pro")
+        self._project  = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
+        self._location = os.getenv("VERTEX_LOCATION", "us-central1")
         self.memory     = get_memory_manager()
 
         # Raw Gemini client (for stats LLM calls)
         self._gemini = None
-        if GENAI_AVAILABLE and self.api_key:
-            self._gemini = genai.Client(api_key=self.api_key)
+        if GENAI_AVAILABLE:
+            self._gemini = genai.Client(
+                vertexai=True,
+                project=self._project,
+                location=self._location,
+            )
 
-        # LangChain Google model (for Deep Agents harness)
+        # LangChain Vertex AI model (for Deep Agents harness)
         self._lc_model = None
-        if LANGCHAIN_GOOGLE_AVAILABLE and self.api_key:
+        if LANGCHAIN_GOOGLE_AVAILABLE:
             try:
-                self._lc_model = ChatGoogleGenerativeAI(
+                self._lc_model = ChatVertexAI(
                     model=self.model_name,
-                    google_api_key=self.api_key,
+                    project=self._project,
+                    location=self._location,
                     temperature=0.4,
                 )
             except Exception as e:
-                print(f"[ClusterAnalyzer] LangChain Google model: {e}")
+                print(f"[ClusterAnalyzer] LangChain Vertex AI model: {e}")
 
         self._deep_agent    = self._build_deep_agent_harness()
         self._fallback_graph = (

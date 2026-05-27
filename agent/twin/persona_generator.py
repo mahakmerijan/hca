@@ -79,12 +79,17 @@ class PersonaGenerator:
     """Generates a Digital Twin persona using Gemini 2.5 Pro."""
 
     def __init__(self):
-        self.api_key = os.getenv("GOOGLE_API_KEY", "")
         self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-pro")
-        self.available = GENAI_AVAILABLE and bool(self.api_key)
+        self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
+        self._location = os.getenv("VERTEX_LOCATION", "us-central1")
+        self.available = GENAI_AVAILABLE
 
         if self.available:
-            self.client = genai.Client(api_key=self.api_key)
+            self.client = genai.Client(
+                vertexai=True,
+                project=self._project,
+                location=self._location,
+            )
 
     def generate(self, profile: dict) -> dict:
         """Generate a full persona from a built twin profile."""

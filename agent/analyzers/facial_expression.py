@@ -194,6 +194,22 @@ class FacialExpressionAnalyzer:
         valid_frames = sum(1 for fe in self.frame_emotions if fe.get("face_detected"))
         return happy_count / valid_frames if valid_frames > 0 else 0.0
 
+    def get_off_segments(self) -> list[dict]:
+        """Return frames that likely felt off due to negative facial emotion."""
+        bad_emotions = {"sad", "angry", "fear", "disgust"}
+        off_segments = []
+        for fe in self.frame_emotions:
+            emotion = fe.get("dominant_emotion", "neutral")
+            if not fe.get("face_detected"):
+                continue
+            if emotion in bad_emotions:
+                off_segments.append({
+                    "frame_idx": fe["frame_idx"],
+                    "dominant_emotion": emotion,
+                    "reason": "negative facial emotion",
+                })
+        return off_segments
+
     def get_summary(self) -> dict:
         """Get a full summary of facial expression analysis."""
         return {
@@ -204,4 +220,5 @@ class FacialExpressionAnalyzer:
             "smile_ratio": round(self.get_smile_ratio(), 3),
             "scenario_scores": self.get_facial_score(),
             "emotion_timeline": self.emotion_timeline[:20],  # First 20 for brevity
+            "off_segments": self.get_off_segments(),
         }
