@@ -31,12 +31,6 @@ gcp_service*.json
 *.json.key
 service_account*.json
 
-# Large model files (binary, not useful in git)
-models/*.task
-
-# Datasets — training data, not needed at runtime
-datasets/
-
 # Outputs & uploads
 output/
 uploads/
