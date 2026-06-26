@@ -73,7 +73,7 @@ if LANGGRAPH_AVAILABLE:
         completed: bool
 
 
-def _build_twin_response(twin_persona: dict, context: str, stage: str) -> str:
+def _build_twin_response(twin_persona: dict, context: str, stage: str, conversation: list = None) -> str:
     """
     Generate the Digital Twin's response using the persona's system prompt
     and the cached Gemini context (if available).
@@ -81,14 +81,24 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str) -> str:
     if not GENAI_AVAILABLE:
         return "[Twin response — Gemini unavailable]"
 
-    # Use flash model for simulation turns — gemini-2.5-pro thinking tokens
-    # consume max_output_tokens, leaving nothing for the actual response.
-    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
+    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash")
     client = _get_genai_client()
-    system = twin_persona.get("system_prompt") or "You are a digital twin. Respond authentically in 2-4 sentences."
-    if not system or len(system) < 10:
+    base_system = twin_persona.get("system_prompt") or "You are a digital twin. Respond authentically in 2-3 sentences."
+    if not base_system or len(base_system) < 10:
         print(f"[SimLoop] WARNING: twin_persona has no/empty system_prompt. Keys: {list(twin_persona.keys())}")
-    user = f"Stage: {stage}\nSituation: {context}\n\nRespond authentically as yourself (2-4 sentences max):"
+
+    # Append last 10 exchanges as conversation history so the model has full context
+    if conversation:
+        history_lines = []
+        for m in conversation[-10:]:
+            speaker = "You" if m["role"] == "twin" else "Them"
+            history_lines.append(f"{speaker}: {m['content']}")
+        history_text = "\n".join(history_lines)
+        system = f"{base_system}\n\nConversation so far:\n{history_text}"
+    else:
+        system = base_system
+
+    user = f"Stage: {stage}\n{context}\n\nRespond naturally as yourself in 2-3 sentences:"
 
     try:
         response = client.models.generate_content(
@@ -97,20 +107,21 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str) -> str:
             config={
                 "system_instruction": system,
                 "temperature": 0.4,
-                "max_output_tokens": 300,
+                "max_output_tokens": 2048,
             },
         )
         text = response.text
         if text is None:
-            # Log the actual finish reason to diagnose why Gemini returns None
+            # response.text is None when model returns only thought parts
             try:
-                candidate = response.candidates[0]
-                finish_reason = getattr(candidate, 'finish_reason', 'unknown')
-                print(f"[SimLoop] Gemini returned None text. finish_reason={finish_reason}")
-                # Try extracting from parts directly
-                text = candidate.content.parts[0].text
+                for part in response.candidates[0].content.parts:
+                    if getattr(part, 'thought', False):
+                        continue
+                    if part.text:
+                        text = part.text
+                        break
             except Exception as ex:
-                print(f"[SimLoop] Could not extract text from candidate: {ex}")
+                print(f"[SimLoop] Could not extract text from parts: {ex}")
                 text = ""
         return (text or "").strip() or "[Twin is composing a response...]"
     except Exception as e:
@@ -286,12 +297,12 @@ class SimulationLoop:
                 ctx = f"They said: \"{last_agent_msg}\""
 
             # Twin responds
-            twin_resp = _build_twin_response(self.twin_persona, context=ctx, stage=stage)
+            twin_resp = _build_twin_response(self.twin_persona, context=ctx, stage=stage, conversation=conversation)
             conversation.append({"role": "twin", "content": twin_resp})
 
             # Agent responds (except on the very last turn)
             if turn_idx < total_turns - 1:
-                agent_resp = agent.respond(scenario["counter_party"], twin_resp, stage=stage)
+                agent_resp = agent.respond(scenario["counter_party"], twin_resp, stage=stage, conversation=conversation)
                 conversation.append({"role": "agent", "content": agent_resp})
 
         grade = self.referee.grade(scenario, conversation, self.twin_persona)

@@ -37,23 +37,38 @@ def _get_client():
     return _client
 
 
-def _call_gemini(system: str, user: str, temperature: float = 0.8) -> str:
+def _call_gemini(system: str, user: str, temperature: float = 0.8, history: list = None) -> str:
     """Shared Gemini call for all counter-party agents."""
     client = _get_client()
     # Use flash model for counter-party responses — fast, non-thinking, sufficient for dialogue
-    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
+    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash")
     if client is None:
         return "[Gemini unavailable — using placeholder response]"
+
+    # Append last 10 exchanges as conversation history for context-aware responses
+    full_system = system
+    if history:
+        history_lines = []
+        for m in history[-10:]:
+            speaker = "Me" if m["role"] == "agent" else "Them"
+            history_lines.append(f"{speaker}: {m['content']}")
+        full_system = f"{system}\n\nConversation so far:\n" + "\n".join(history_lines)
+
     try:
         response = client.models.generate_content(
             model=model_name,
             contents=user,
-            config={"system_instruction": system, "temperature": temperature, "max_output_tokens": 200},
+            config={"system_instruction": full_system, "temperature": temperature, "max_output_tokens": 2048},
         )
         text = response.text
         if text is None:
             try:
-                text = response.candidates[0].content.parts[0].text
+                for part in response.candidates[0].content.parts:
+                    if getattr(part, 'thought', False):
+                        continue
+                    if part.text:
+                        text = part.text
+                        break
             except Exception:
                 text = ""
         return (text or "").strip() or "[Agent is thinking...]"
@@ -83,14 +98,14 @@ RULES:
 2. React authentically to what the candidate says
 3. If they give weak answers, show it (skepticism, shorter responses, follow-up pressure)
 4. If they impress you, show it (lean in, ask deeper questions)
-5. Keep each response to 2-4 sentences maximum
+5. Keep each response to 2-3 sentences — natural spoken dialogue
 6. After the curveball, signal how you feel about the candidate's response
 7. Return only the spoken dialogue — no stage directions"""
 
-    def respond(self, archetype: dict, candidate_response: str, stage: str) -> str:
+    def respond(self, archetype: dict, candidate_response: str, stage: str, conversation: list = None) -> str:
         system = self.build_system_prompt(archetype)
-        user = f"Stage: {stage}\nCandidate just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Recruiter')}:"
-        return _call_gemini(system, user, temperature=0.75)
+        user = f"Stage: {stage}\nThey just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Recruiter')}:"
+        return _call_gemini(system, user, temperature=0.75, history=conversation)
 
 
 class InvestorAgent:
@@ -118,10 +133,10 @@ RULES:
 6. If the pitch impresses you, signal interest; if not, signal skepticism
 7. Return only spoken dialogue"""
 
-    def respond(self, archetype: dict, candidate_response: str, stage: str) -> str:
+    def respond(self, archetype: dict, candidate_response: str, stage: str, conversation: list = None) -> str:
         system = self.build_system_prompt(archetype)
-        user = f"Stage: {stage}\nFounder just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Investor')}:"
-        return _call_gemini(system, user, temperature=0.75)
+        user = f"Stage: {stage}\nThey just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Investor')}:"
+        return _call_gemini(system, user, temperature=0.75, history=conversation)
 
 
 class DateAgent:
@@ -145,13 +160,13 @@ RULES:
 2. React naturally — if something they say is interesting, engage; if it's awkward, show mild awkwardness
 3. Be flirtatious or reserved based on your personality
 4. If they're impressive, lean in; if they're boring, show it subtly
-5. Keep responses to 2-4 sentences — real conversations aren't monologues
+5. Keep responses to 2-3 natural sentences — real conversations aren't monologues
 6. Return only spoken dialogue"""
 
-    def respond(self, archetype: dict, candidate_response: str, stage: str) -> str:
+    def respond(self, archetype: dict, candidate_response: str, stage: str, conversation: list = None) -> str:
         system = self.build_system_prompt(archetype)
-        user = f"Stage: {stage}\nDate partner just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Date')}:"
-        return _call_gemini(system, user, temperature=0.85)
+        user = f"Stage: {stage}\nThey just said: \"{candidate_response}\"\n\nYour response as {archetype.get('name', 'Date')}:"
+        return _call_gemini(system, user, temperature=0.85, history=conversation)
 
 
 def get_agent_for_category(category: str):

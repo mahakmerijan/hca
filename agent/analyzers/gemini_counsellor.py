@@ -288,12 +288,18 @@ class GeminiCounsellor:
                 },
             )
             text = response.text.strip()
+            # Strip fenced code blocks (```json ... ``` or ``` ... ```)
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):
                 text = text[:-3].strip()
             if text.startswith("json"):
                 text = text[4:].strip()
+            # Extract outermost JSON object — handles trailing prose/thinking tokens
+            import re as _re
+            m = _re.search(r'\{.*\}', text, _re.DOTALL)
+            if m:
+                text = m.group(0)
 
             report = json.loads(text)
             return report

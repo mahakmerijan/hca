@@ -12,6 +12,7 @@ As specified in architecture.md Step 3.
 
 import json
 import os
+import re
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -67,7 +68,7 @@ class RefereeAgent:
 
     def __init__(self):
         # Use flash model — gemini-2.5-pro thinking tokens starve output budget
-        self.model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.0-flash")
+        self.model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash")
         self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
         self._location = os.getenv("VERTEX_LOCATION", "us-central1")
         self.available = GENAI_AVAILABLE
@@ -114,24 +115,43 @@ class RefereeAgent:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
-                config={"system_instruction": REFEREE_SYSTEM_PROMPT, "temperature": 0.3},
+                config={
+                    "system_instruction": REFEREE_SYSTEM_PROMPT,
+                    "temperature": 0.3,
+                    "max_output_tokens": 4096,
+                    "thinking_config": {"thinking_budget": 0},
+                },
             )
             raw = response.text
             if raw is None:
+                # response.text is None when model returns only thought parts
+                # iterate parts and pick the first non-thought text part
                 try:
-                    finish_reason = getattr(response.candidates[0], 'finish_reason', 'unknown')
-                    print(f"[RefereeAgent] Gemini returned None text. finish_reason={finish_reason}")
-                    raw = response.candidates[0].content.parts[0].text or ""
+                    for part in response.candidates[0].content.parts:
+                        if getattr(part, 'thought', False):
+                            continue
+                        if part.text:
+                            raw = part.text
+                            break
+                    if raw is None:
+                        finish_reason = getattr(response.candidates[0], 'finish_reason', 'unknown')
+                        print(f"[RefereeAgent] No text part found. finish_reason={finish_reason}")
+                        raw = ""
                 except Exception as ex:
-                    print(f"[RefereeAgent] Could not extract text: {ex}")
+                    print(f"[RefereeAgent] Could not extract text from parts: {ex}")
                     raw = ""
             text = raw.strip()
+            # strip markdown code fences
             if text.startswith("```"):
                 text = "\n".join(text.split("\n")[1:])
             if text.endswith("```"):
                 text = text[:-3].strip()
             if text.startswith("json"):
                 text = text[4:].strip()
+            # extract outermost JSON object — handles thinking tokens / prose wrapping
+            m = re.search(r'\{.*\}', text, re.DOTALL)
+            if m:
+                text = m.group(0)
             grade = json.loads(text)
             grade["scenario_id"] = scenario.get("scenario_id")
             grade["category"] = scenario.get("category")
