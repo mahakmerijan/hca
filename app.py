@@ -10,22 +10,54 @@ import tempfile
 import uuid
 import threading
 from datetime import datetime
+from dotenv import load_dotenv
 
-# ── Render / cloud: materialise GCP service-account credentials ──────────────
-# On Render, set GCP_SERVICE_ACCOUNT_JSON to the full JSON content.
-# GOOGLE_APPLICATION_CREDENTIALS cannot point to a file that doesn't exist on
-# the ephemeral container, so we write the JSON to a temp file at startup.
-_gcp_json_str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "")
-if _gcp_json_str and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-    try:
-        _gcp_tmp = tempfile.NamedTemporaryFile(
-            delete=False, suffix=".json", mode="w"
-        )
-        _gcp_tmp.write(_gcp_json_str)
-        _gcp_tmp.close()
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _gcp_tmp.name
-    except Exception as _e:
-        print(f"[Startup] Could not write GCP credentials temp file: {_e}")
+load_dotenv()
+
+# ── Build GOOGLE_APPLICATION_CREDENTIALS from individual .env fields ──────────
+# ── Option A: full JSON blob stored as GOOGLE_CREDENTIALS_JSON env var ───────
+# On Render (or any host without a filesystem), paste the entire JSON content
+# as a single env var named GOOGLE_CREDENTIALS_JSON and we write it to a temp file.
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    _creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip()
+    if _creds_json:
+        try:
+            _gcp_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w")
+            _gcp_tmp.write(_creds_json)
+            _gcp_tmp.close()
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _gcp_tmp.name
+            print(f"[Startup] GCP credentials loaded from GOOGLE_CREDENTIALS_JSON → {_gcp_tmp.name}")
+        except Exception as _e:
+            print(f"[Startup] Could not write GOOGLE_CREDENTIALS_JSON temp file: {_e}")
+
+# ── Option B: individual GCP_* fields (legacy service_account type) ──────────
+# All GCP service-account fields are stored as separate env vars (GCP_*).
+# We reconstruct the JSON and write it to a temp file so the Google SDK can use it.
+# This works identically on localhost (.env) and Render (environment variables).
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    _private_key = os.getenv("GCP_PRIVATE_KEY", "").replace("\\n", "\n")
+    if _private_key:
+        _gcp_creds = {
+            "type":                        os.getenv("GCP_TYPE", "service_account"),
+            "project_id":                  os.getenv("GCP_PROJECT_ID", ""),
+            "private_key_id":              os.getenv("GCP_PRIVATE_KEY_ID", ""),
+            "private_key":                 _private_key,
+            "client_email":                os.getenv("GCP_CLIENT_EMAIL", ""),
+            "client_id":                   os.getenv("GCP_CLIENT_ID", ""),
+            "auth_uri":                    os.getenv("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+            "token_uri":                   os.getenv("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+            "auth_provider_x509_cert_url": os.getenv("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
+            "client_x509_cert_url":        os.getenv("GCP_CLIENT_X509_CERT_URL", ""),
+            "universe_domain":             os.getenv("GCP_UNIVERSE_DOMAIN", "googleapis.com"),
+        }
+        try:
+            _gcp_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w")
+            json.dump(_gcp_creds, _gcp_tmp)
+            _gcp_tmp.close()
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _gcp_tmp.name
+            print(f"[Startup] GCP credentials loaded from env vars → {_gcp_tmp.name}")
+        except Exception as _e:
+            print(f"[Startup] Could not write GCP credentials temp file: {_e}")
 # ─────────────────────────────────────────────────────────────────────────────
 
 from flask import Flask, render_template, request, jsonify, send_from_directory
