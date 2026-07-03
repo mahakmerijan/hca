@@ -101,6 +101,7 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str, conversat
     user = f"Stage: {stage}\n{context}\n\nRespond naturally as yourself in 2-3 sentences:"
 
     try:
+        from agent.token_logger import log_call, extract_token_counts
         response = client.models.generate_content(
             model=model_name,
             contents=user,
@@ -110,6 +111,8 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str, conversat
                 "max_output_tokens": 2048,
             },
         )
+        _inp, _out = extract_token_counts(response)
+        log_call(model_name, "SimulationLoop/twin", _inp, _out)
         text = response.text
         if text is None:
             # response.text is None when model returns only thought parts
@@ -347,3 +350,140 @@ class SimulationLoop:
             executor.map(run_one, scenarios)
 
         return results
+
+    def run_custom_persona(
+        self,
+        custom_persona: dict,
+        twin_persona: Optional[dict] = None,
+        max_turns: int = 50,
+    ) -> dict:
+        """
+        Run a single 50-turn simulation against a custom persona generated from the user's
+        description.  Returns a result dict in the same shape as _extended_run.
+
+        Args:
+            custom_persona: dict produced by CustomPersonaGenerator.generate()
+            twin_persona:   override for self.twin_persona (optional)
+            max_turns:      number of conversation turns (default 50)
+        """
+        if twin_persona:
+            self.twin_persona = twin_persona
+
+        # Build a synthetic scenario from the custom persona
+        scenario = {
+            "scenario_id": "custom",
+            "category": custom_persona.get("category", "general"),
+            "counter_party": {
+                "name": custom_persona.get("persona_name", "Alex"),
+                "title": custom_persona.get("persona_title", ""),
+                "personality": custom_persona.get("personality_summary", ""),
+                "goal": custom_persona.get("primary_goal", ""),
+                "style": custom_persona.get("communication_style", ""),
+                "openness": custom_persona.get("openness_to_candidate", 5),
+                "pressure": custom_persona.get("pressure_level", 5),
+                "curveball_questions": custom_persona.get("curveball_questions", []),
+                "opening_line": custom_persona.get("opening_line", ""),
+                # Store the full system prompt so CustomCounterAgent can use it
+                "_custom_system_prompt": custom_persona.get("system_prompt", ""),
+            },
+            "opening_prompt": custom_persona.get("opening_line", ""),
+            "curveball_question": (custom_persona.get("curveball_questions") or ["Tell me about yourself."])[0],
+            "closing_prompt": "What final thoughts do you have for me?",
+        }
+
+        result = self._extended_run_custom(scenario, max_turns=max_turns)
+        result["scenario_id"] = "custom"
+        result["category"] = scenario["category"]
+        result["counter_party_name"] = custom_persona.get("persona_name", "Alex")
+        result["custom_persona"] = custom_persona
+        return result
+
+    def _extended_run_custom(self, scenario: dict, max_turns: int = 50) -> dict:
+        """
+        Like _extended_run but uses the custom persona's own system_prompt as the
+        counter-party instruction instead of a predefined archetype agent.
+        """
+        conversation = []
+        agent_system = scenario["counter_party"].get("_custom_system_prompt", "")
+        if not agent_system:
+            agent_system = (
+                f"You are {scenario['counter_party'].get('name', 'an interviewer')}. "
+                f"Your goal: {scenario['counter_party'].get('goal', 'evaluate the candidate')}. "
+                "Be professional and challenging."
+            )
+
+        curveballs = scenario["counter_party"].get("curveball_questions", [])
+
+        def _custom_agent_respond(twin_response: str, turn_idx: int) -> str:
+            """Generate counter-party response using the custom persona system prompt."""
+            if not GENAI_AVAILABLE:
+                return "[Agent unavailable]"
+            model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash")
+            client = _get_genai_client()
+
+            # Build conversation history
+            history_lines = [
+                f"{'Candidate' if m['role'] == 'twin' else 'You'}: {m['content']}"
+                for m in conversation[-10:]
+            ]
+            history_text = "\n".join(history_lines)
+            full_system = f"{agent_system}\n\nConversation so far:\n{history_text}" if history_text else agent_system
+
+            # Inject a curveball at ~40% through the conversation
+            curveball_turn = max(1, int(max_turns * 0.4))
+            if curveballs and turn_idx == curveball_turn:
+                curveball = curveballs[min(turn_idx // 10, len(curveballs) - 1)]
+                user_msg = f"The candidate just said: \"{twin_response}\"\nNow ask this curveball question naturally: \"{curveball}\""
+            else:
+                user_msg = f"The candidate just said: \"{twin_response}\"\nRespond naturally in 2-3 sentences."
+
+            try:
+                from agent.token_logger import log_call, extract_token_counts
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=user_msg,
+                    config={
+                        "system_instruction": full_system,
+                        "temperature": 0.7,
+                        "max_output_tokens": 2048,
+                    },
+                )
+                _inp, _out = extract_token_counts(response)
+                log_call(model_name, "CustomCounterAgent", _inp, _out)
+                text = response.text
+                if text is None:
+                    for part in (response.candidates or [{}])[0].content.parts:
+                        if not getattr(part, "thought", False) and part.text:
+                            text = part.text
+                            break
+                return (text or "").strip() or "[Agent is thinking...]"
+            except Exception as e:
+                return f"[Agent error: {e}]"
+
+        # Opening
+        opening_ctx = scenario.get("opening_prompt") or "Please introduce yourself."
+        print(f"[CustomSim] Starting {max_turns}-turn custom simulation", flush=True)
+        twin_resp = _build_twin_response(self.twin_persona, context=opening_ctx, stage="opening")
+        conversation.append({"role": "twin", "content": twin_resp})
+        agent_resp = _custom_agent_respond(twin_resp, 0)
+        conversation.append({"role": "agent", "content": agent_resp})
+
+        # Main loop
+        for turn_idx in range(1, max_turns):
+            if turn_idx % 5 == 0:
+                print(f"[CustomSim] Turn {turn_idx}/{max_turns}", flush=True)
+            stage = "opening" if turn_idx < 3 else ("curveball" if turn_idx < max_turns * 0.6 else "closing")
+            last_agent_msg = conversation[-1]["content"] if conversation[-1]["role"] == "agent" else ""
+            ctx = f"They said: \"{last_agent_msg}\""
+
+            twin_resp = _build_twin_response(self.twin_persona, context=ctx, stage=stage, conversation=conversation)
+            conversation.append({"role": "twin", "content": twin_resp})
+
+            if turn_idx < max_turns - 1:
+                agent_resp = _custom_agent_respond(twin_resp, turn_idx)
+                conversation.append({"role": "agent", "content": agent_resp})
+
+        grade = self.referee.grade(scenario, conversation, self.twin_persona)
+        grade["conversation"] = conversation
+        return grade
+

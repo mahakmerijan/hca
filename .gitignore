@@ -35,6 +35,10 @@ service_account*.json
 output/
 uploads/
 
+# LLM token usage logs (keep the .gitkeep but not the actual log files)
+logs/*.jsonl
+logs/*.log
+
 # Twins store (runtime state, not source code)
 output/twins_store.json
 

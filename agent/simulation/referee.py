@@ -112,6 +112,7 @@ class RefereeAgent:
         )
 
         try:
+            from agent.token_logger import log_call, extract_token_counts
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -122,6 +123,9 @@ class RefereeAgent:
                     "thinking_config": {"thinking_budget": 0},
                 },
             )
+            _inp, _out = extract_token_counts(response)
+            log_call(self.model_name, "RefereeAgent", _inp, _out,
+                     extra={"scenario_id": scenario.get("scenario_id")})
             raw = response.text
             if raw is None:
                 # response.text is None when model returns only thought parts

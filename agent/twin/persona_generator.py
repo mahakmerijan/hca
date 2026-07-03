@@ -230,6 +230,7 @@ Full transcript (what they actually said): {_s(vd.get('full_transcript'))}
         )
 
         try:
+            from agent.token_logger import log_call, extract_token_counts
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -238,6 +239,9 @@ Full transcript (what they actually said): {_s(vd.get('full_transcript'))}
                     "temperature": 0.6,
                 },
             )
+            _inp, _out = extract_token_counts(response)
+            log_call(self.model_name, "PersonaGenerator", _inp, _out,
+                     extra={"profile_name": profile.get("name", "")})
             text = response.text.strip()
             # Strip markdown fences if present
             if text.startswith("```"):

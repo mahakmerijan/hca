@@ -186,6 +186,67 @@ def _build_conversation_gists(simulation_results: list, limit: int = 5) -> list:
     return gists
 
 
+def _merge_video_analyses(analyses: list) -> dict:
+    """
+    Merge analysis results from multiple video uploads into a single combined result.
+    Averages numeric metrics; concatenates transcripts; keeps the latest counselling report.
+    """
+    if not analyses:
+        return {}
+    if len(analyses) == 1:
+        return analyses[0]
+
+    import copy
+
+    merged = copy.deepcopy(analyses[0])
+
+    def _avg(dicts, key, subkey, default=0):
+        vals = [d.get(key, {}).get(subkey, default) for d in dicts if isinstance(d.get(key), dict)]
+        return sum(vals) / len(vals) if vals else default
+
+    # Average facial metrics
+    fa_keys = ["smile_ratio", "total_frames_analyzed", "faces_detected"]
+    for k in fa_keys:
+        vals = [a.get("facial_analysis", {}).get(k, 0) for a in analyses]
+        if any(v != 0 for v in vals):
+            merged.setdefault("facial_analysis", {})[k] = sum(vals) / len(vals)
+
+    # Average scenario scores across all analyses
+    for section in ("facial_analysis", "body_language_analysis", "voice_speech_analysis"):
+        scores = {}
+        for a in analyses:
+            for cat, score in (a.get(section, {}).get("scenario_scores") or {}).items():
+                scores.setdefault(cat, []).append(score)
+        if scores:
+            merged.setdefault(section, {})["scenario_scores"] = {
+                k: round(sum(v) / len(v), 2) for k, v in scores.items()
+            }
+
+    # Concatenate voice transcripts
+    transcripts = []
+    for a in analyses:
+        vs = a.get("voice_speech_analysis", {})
+        t = vs.get("full_transcript") or vs.get("audio_features", {}).get("speech_content", {}).get("transcript_preview", "")
+        if t:
+            transcripts.append(t)
+    if transcripts:
+        merged.setdefault("voice_speech_analysis", {})["full_transcript"] = " | ".join(transcripts)
+
+    # Average final predictions
+    for scenario in ("job_interview", "business_deal", "date"):
+        probs = [a.get("final_predictions", {}).get(scenario, {}).get("probability", 0) for a in analyses]
+        if any(p != 0 for p in probs):
+            avg_prob = round(sum(probs) / len(probs), 1)
+            merged.setdefault("final_predictions", {}).setdefault(scenario, {})["probability"] = avg_prob
+
+    # Keep counselling from the last analysis (most recent video)
+    if analyses[-1].get("counselling"):
+        merged["counselling"] = analyses[-1]["counselling"]
+
+    merged["_merged_from"] = len(analyses)
+    return merged
+
+
 def _run_analysis(job_id: str, video_path: str):
     """Background worker — runs full analysis pipeline then Gemini counselling."""
     user_context = user_contexts.get(job_id)
@@ -430,8 +491,13 @@ def twin_schema():
 @require_auth
 def twin_create():
     """
-    POST { name, form_data, video_job_id? } → twin document
-    Creates Digital Twin from questionnaire + (optionally) a completed video analysis.
+    POST {
+      name, form_data,
+      video_job_id?,          # single video (legacy)
+      video_job_ids?,         # list of video job_ids for multi-video (new)
+      scenario_description?,  # what the user is preparing for
+      scenario_answers?       # answers to the dynamic scenario questionnaire
+    } → twin document
     """
     data          = request.get_json(force=True)
     user_svc, twin_svc, *_ = _services()
@@ -439,19 +505,26 @@ def twin_create():
     user          = user_svc.get_user(user_id)
     user_name     = data.get("name") or (user.get("name") if user else "User")
 
-    # Attach video analysis from a completed job
-    video_analysis = None
-    video_job_id   = data.get("video_job_id")
-    # Try twin-specific video job first, then fall back to any completed main job
-    if video_job_id and video_job_id in jobs and jobs[video_job_id].get("status") == "done":
-        video_analysis = jobs[video_job_id].get("results")
-    else:
-        # Fallback: find the most recently completed job for this user
+    # ── Collect video analysis (supports multiple videos) ────────────
+    video_job_ids = data.get("video_job_ids") or []
+    if data.get("video_job_id"):
+        video_job_ids = list({data["video_job_id"]} | set(video_job_ids))
+
+    completed_analyses = [
+        jobs[jid]["results"]
+        for jid in video_job_ids
+        if jid in jobs and jobs[jid].get("status") == "done" and jobs[jid].get("results")
+    ]
+
+    # Fallback: use the most recently completed job if none specified
+    if not completed_analyses:
         for jid, j in reversed(list(jobs.items())):
             if j.get("status") == "done" and j.get("results"):
-                video_analysis = j["results"]
-                print(f"[TwinCreate] Using video job {jid} for twin creation")
+                completed_analyses = [j["results"]]
+                print(f"[TwinCreate] Falling back to video job {jid}")
                 break
+
+    video_analysis = _merge_video_analyses(completed_analyses) if completed_analyses else None
 
     form_data = data.get("form_data", {})
     answered_count = sum(
@@ -469,6 +542,13 @@ def twin_create():
         return jsonify({
             "error": "Please upload and finish video analysis before creating your Digital Twin."
         }), 400
+
+    # Attach scenario preparation context if provided
+    scenario_description = data.get("scenario_description", "")
+    scenario_answers     = data.get("scenario_answers", {})
+    if scenario_description:
+        form_data["_scenario_description"] = scenario_description
+        form_data["_scenario_answers"]     = scenario_answers
 
     result = twin_svc.create_twin(
         user_id=user_id,
@@ -526,6 +606,59 @@ def twin_update():
 
 
 # ══════════════════════════════════════════════════════════════════
+# SCENARIO PREPARATION ROUTES (new)
+# ══════════════════════════════════════════════════════════════════
+
+@app.route("/twin/scenario-questions", methods=["POST"])
+@require_auth
+def scenario_questions():
+    """
+    POST { scenario_description: "I am preparing for a Series A pitch with a16z..." }
+    → [ { id, label, question, type, options?, ... }, ... ]
+
+    Generates a dynamic set of 8-12 targeted questions about the user's specific
+    preparation context, to be answered before custom persona creation.
+    """
+    data = request.get_json(force=True)
+    description = data.get("scenario_description", "").strip()
+    if not description:
+        return jsonify({"error": "scenario_description is required"}), 400
+
+    from agent.twin.scenario_questionnaire_generator import ScenarioQuestionnaireGenerator
+    gen = ScenarioQuestionnaireGenerator()
+    questions = gen.generate_questions(description, user_id=request.user_id)
+    return jsonify({"questions": questions})
+
+
+@app.route("/twin/custom-persona", methods=["POST"])
+@require_auth
+def custom_persona_create():
+    """
+    POST {
+      description: "A senior partner at McKinsey who is very data-driven...",
+      questionnaire_answers: { "sq_stakes": 9, "sq_goal": "get an offer", ... }
+    }
+    → custom persona dict (same shape as built-in archetypes)
+
+    Creates a simulation-ready counter-party persona from the user's description.
+    Store the result and pass it as custom_persona to /simulation/begin.
+    """
+    data = request.get_json(force=True)
+    description = data.get("description", "").strip()
+    if not description:
+        return jsonify({"error": "description is required"}), 400
+
+    from agent.simulation.custom_persona_generator import CustomPersonaGenerator
+    gen = CustomPersonaGenerator()
+    persona = gen.generate(
+        description=description,
+        questionnaire_answers=data.get("questionnaire_answers", {}),
+        user_id=request.user_id,
+    )
+    return jsonify(persona)
+
+
+# ══════════════════════════════════════════════════════════════════
 # SIMULATION ROUTES
 # ══════════════════════════════════════════════════════════════════
 
@@ -533,8 +666,12 @@ def twin_update():
 @require_auth
 def simulation_start():
     """
-    POST { twin_id } → { sim_id, status, total }
-    Launches a background 10-scenario simulation run.
+    POST {
+      twin_id,
+      mode?: "predefined" | "custom" | "both"  (default "predefined"),
+      custom_persona?:  persona dict from /twin/custom-persona
+    } → { sim_id, status, total, mode }
+    Launches a background simulation run.
     """
     data = request.get_json(force=True)
     _, twin_svc, sim_svc, _ = _services()
@@ -544,10 +681,21 @@ def simulation_start():
     twin = twin_svc.get_twin(twin_id)
     if not twin:
         return jsonify({"error": "Twin not found"}), 404
+
+    mode           = data.get("mode", "predefined")
+    custom_persona = data.get("custom_persona")
+
+    if mode not in ("predefined", "custom", "both"):
+        return jsonify({"error": "mode must be 'predefined', 'custom', or 'both'"}), 400
+    if mode in ("custom", "both") and not custom_persona:
+        return jsonify({"error": "custom_persona is required when mode includes 'custom'"}), 400
+
     result = sim_svc.start_simulation(
         user_id=request.user_id,
         twin_id=twin_id,
         twin_persona=twin.get("persona", {}),
+        mode=mode,
+        custom_persona=custom_persona,
     )
     return jsonify(result), 202
 
@@ -555,7 +703,7 @@ def simulation_start():
 @app.route("/simulation/<sim_id>", methods=["GET"])
 @require_auth
 def simulation_get(sim_id):
-    """GET /simulation/<sim_id> → { sim_id, status, completed, total, live_turn, ... }"""
+    """GET /simulation/<sim_id> → { sim_id, status, completed, total, live_turn, custom_result, ... }"""
     _, _, sim_svc, _ = _services()
     sim = sim_svc.get_simulation(sim_id)
     if not sim:
@@ -574,13 +722,15 @@ def simulation_get(sim_id):
             "conversation":  r.get("conversation", []),
         })
     return jsonify({
-        "sim_id":    sim["sim_id"],
-        "status":    sim["status"],
-        "completed": sim["completed"],
-        "total":     sim["total"],
-        "error":     sim.get("error"),
-        "live_turn": sim.get("live_turn"),
-        "all_turns": all_turns,
+        "sim_id":        sim["sim_id"],
+        "status":        sim["status"],
+        "mode":          sim.get("mode", "predefined"),
+        "completed":     sim["completed"],
+        "total":         sim["total"],
+        "error":         sim.get("error"),
+        "live_turn":     sim.get("live_turn"),
+        "all_turns":     all_turns,
+        "custom_result": sim.get("custom_result"),
     })
 
 
@@ -663,6 +813,50 @@ def user_insights(user_id):
         return jsonify({"error": "Forbidden"}), 403
     _, _, _, analysis_svc = _services()
     return jsonify(analysis_svc.get_insights(user_id))
+
+
+# ══════════════════════════════════════════════════════════════════
+# ADMIN / OBSERVABILITY ROUTES
+# ══════════════════════════════════════════════════════════════════
+
+@app.route("/admin/token-usage", methods=["GET"])
+@require_auth
+def admin_token_usage():
+    """
+    GET /admin/token-usage?days=7
+    Returns per-day GCP LLM token and cost summary for the last N days.
+    Also returns the log file path for manual inspection.
+
+    Query params:
+      days  — number of days to include (default 7, max 90)
+    """
+    from agent.token_logger import get_summary, get_log_file_path, get_run_summaries
+    try:
+        days = min(int(request.args.get("days", 7)), 90)
+    except (ValueError, TypeError):
+        days = 7
+
+    summary   = get_summary(days=days)
+    total_inp = sum(v["input"]    for v in summary.values())
+    total_out = sum(v["output"]   for v in summary.values())
+    total_cost= sum(v["cost_usd"] for v in summary.values())
+    total_calls = sum(v["calls"]  for v in summary.values())
+
+    run_summaries = get_run_summaries(limit=50)
+
+    return jsonify({
+        "days":        days,
+        "per_day":     summary,
+        "totals": {
+            "input_tokens":  total_inp,
+            "output_tokens": total_out,
+            "total_tokens":  total_inp + total_out,
+            "calls":         total_calls,
+            "cost_usd":      round(total_cost, 4),
+        },
+        "run_summaries": run_summaries,
+        "log_file": get_log_file_path(),
+    })
 
 
 # ══════════════════════════════════════════════════════════════════

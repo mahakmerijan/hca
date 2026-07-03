@@ -29,7 +29,7 @@ _by_email: Dict[str, str] = {}   # email → user_id
 
 JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
 JWT_ALGO   = "HS256"
-JWT_EXP_H  = 24  # hours
+JWT_EXP_H  = int(os.getenv("JWT_EXP_H", "720"))  # hours (default 30 days)
 
 
 class UserService:

@@ -279,6 +279,7 @@ class GeminiCounsellor:
         )
 
         try:
+            from agent.token_logger import log_call, extract_token_counts
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -287,6 +288,9 @@ class GeminiCounsellor:
                     "temperature": 0.7,
                 },
             )
+            _inp, _out = extract_token_counts(response)
+            log_call(self.model_name, "GeminiCounsellor", _inp, _out,
+                     extra={"job_id": (user_context or {}).get("job_id", "")})
             text = response.text.strip()
             # Strip fenced code blocks (```json ... ``` or ``` ... ```)
             if text.startswith("```"):

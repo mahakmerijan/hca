@@ -19,6 +19,7 @@ except ImportError:
 from agent.simulation.scenario_generator import ScenarioGenerator
 from agent.simulation.simulation_loop import SimulationLoop
 from agent.memory.redis_cache import RedisCache
+from agent.token_logger import log_run_summary
 
 # In-memory fallback
 _simulations: Dict[str, dict] = {}
@@ -70,34 +71,58 @@ class SimulationService:
 
     # ── Public API ────────────────────────────────────────────────
 
-    def start_simulation(self, user_id: str, twin_id: str, twin_persona: dict) -> dict:
+    def start_simulation(
+        self,
+        user_id: str,
+        twin_id: str,
+        twin_persona: dict,
+        mode: str = "predefined",
+        custom_persona: Optional[dict] = None,
+    ) -> dict:
         """
         Create a simulation record and immediately kick off async execution.
+
+        Args:
+            mode: "predefined" | "custom" | "both"
+              - predefined: run the 10 built-in scenarios
+              - custom:     run only the custom persona (1 scenario, 50 turns)
+              - both:       run predefined 10 + custom persona
+
         Returns sim_id + status=running.
         """
         sim_id = str(uuid.uuid4())
-        scenarios = self._scenario_gen.generate_all()
+
+        # Determine which scenarios to run
+        if mode in ("predefined", "both"):
+            scenarios = self._scenario_gen.generate_all()
+        else:
+            scenarios = []
+
+        total = len(scenarios) + (1 if mode in ("custom", "both") and custom_persona else 0)
 
         sim_doc = {
-            "sim_id":     sim_id,
-            "user_id":    user_id,
-            "twin_id":    twin_id,
-            "status":     "running",
-            "total":      len(scenarios),
-            "completed":  0,
-            "results":    [],
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "sim_id":          sim_id,
+            "user_id":         user_id,
+            "twin_id":         twin_id,
+            "mode":            mode,
+            "status":          "running",
+            "total":           total,
+            "completed":       0,
+            "results":         [],
+            "custom_result":   None,
+            "created_at":      datetime.utcnow().isoformat(),
+            "started_at":      datetime.utcnow().isoformat() + "Z",
+            "updated_at":      datetime.utcnow().isoformat(),
         }
         self._save_simulation(sim_doc)
         self._cache.set(f"sim:active:{sim_id}", sim_doc, ttl=3600)
 
         # Launch in background thread
         executor = ThreadPoolExecutor(max_workers=1)
-        executor.submit(self._run_background, sim_id, scenarios, twin_persona)
+        executor.submit(self._run_background, sim_id, scenarios, twin_persona, mode, custom_persona)
         executor.shutdown(wait=False)
 
-        return {"sim_id": sim_id, "status": "running", "total": len(scenarios)}
+        return {"sim_id": sim_id, "status": "running", "total": total, "mode": mode}
 
     def get_simulation(self, sim_id: str) -> Optional[dict]:
         # Try cache first (fastest)
@@ -122,11 +147,19 @@ class SimulationService:
 
     # ── Background execution ──────────────────────────────────────
 
-    def _run_background(self, sim_id: str, scenarios: List[dict], twin_persona: dict):
+    def _run_background(
+        self,
+        sim_id: str,
+        scenarios: List[dict],
+        twin_persona: dict,
+        mode: str = "predefined",
+        custom_persona: Optional[dict] = None,
+    ):
         results = []
 
         def on_progress(completed_count: int, total: int, last_result: dict):
             results.append(last_result)
+            print(f"[SimulationService] {sim_id[:8]} progress {completed_count}/{total} — scenario {last_result.get('category','?')} score={last_result.get('overall_score','?')}", flush=True)
             sim = self._load_simulation(sim_id) or {}
             sim["completed"]  = completed_count
             sim["results"]    = list(results)
@@ -141,8 +174,6 @@ class SimulationService:
                 "outcome":       last_result.get("verdict", ""),
                 "conversation":  last_result.get("conversation", []),
             }
-            if completed_count >= total:
-                sim["status"] = "completed"
             self._save_simulation(sim)
             self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
             self._cache.set(f"sim:progress:{sim_id}", {
@@ -150,26 +181,66 @@ class SimulationService:
             }, ttl=60)
 
         try:
-            max_workers = int(os.getenv("SIM_MAX_WORKERS", "5"))
-            self._loop.run_batch(
-                scenarios,
-                twin_persona=twin_persona,
-                progress_callback=on_progress,
-                max_workers=max_workers,
-            )
+            print(f"[SimulationService] Starting background run for {sim_id}, mode={mode}, scenarios={len(scenarios)}", flush=True)
+            # Run predefined scenarios
+            if mode in ("predefined", "both") and scenarios:
+                max_workers = int(os.getenv("SIM_MAX_WORKERS", "5"))
+                total = len(scenarios) + (1 if mode == "both" and custom_persona else 0)
+                self._loop.run_batch(
+                    scenarios,
+                    twin_persona=twin_persona,
+                    progress_callback=lambda c, t, r: on_progress(c, total, r),
+                    max_workers=max_workers,
+                )
+
+            # Run custom persona simulation
+            if mode in ("custom", "both") and custom_persona:
+                predefined_done = len(results)
+                total = predefined_done + 1
+                sim = self._load_simulation(sim_id) or {}
+                sim["status"]     = "running_custom"
+                sim["updated_at"] = datetime.utcnow().isoformat()
+                self._save_simulation(sim)
+                self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
+
+                print(f"[SimulationService] Starting custom persona simulation (50 turns)", flush=True)
+                custom_result = self._loop.run_custom_persona(
+                    custom_persona=custom_persona,
+                    twin_persona=twin_persona,
+                    max_turns=50,
+                )
+                sim = self._load_simulation(sim_id) or {}
+                sim["custom_result"] = custom_result
+                sim["completed"]     = predefined_done + 1
+                sim["updated_at"]    = datetime.utcnow().isoformat()
+                self._save_simulation(sim)
+                self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
+
             # Final status update
             sim = self._load_simulation(sim_id) or {}
             sim["status"]     = "completed"
             sim["updated_at"] = datetime.utcnow().isoformat()
             self._save_simulation(sim)
             self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
+            # Write run-level token summary
+            log_run_summary(
+                run_type="simulation",
+                sim_id=sim_id,
+                user_id=sim.get("user_id"),
+                started_at=sim.get("started_at"),
+            )
+
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             sim = self._load_simulation(sim_id) or {}
             sim["status"] = "error"
             sim["error"]  = str(e)
+            sim["traceback"] = tb
             self._save_simulation(sim)
             self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
-            print(f"[SimulationService] Simulation {sim_id} error: {e}")
+            log_run_summary(run_type="simulation_error", sim_id=sim_id, user_id=sim.get("user_id"), started_at=sim.get("started_at"))
+            print(f"[SimulationService] Simulation {sim_id} error: {e}\n{tb}", flush=True)
 
     # ── Storage ───────────────────────────────────────────────────
 
