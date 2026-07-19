@@ -45,3 +45,4 @@ output/twins_store.json
 # External repos (too large)
 external_repos/
 
+datasets/
