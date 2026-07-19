@@ -8,18 +8,38 @@ import math
 import os
 import urllib.request
 import numpy as np
-import mediapipe as mp
-import cv2
+
+try:
+    import mediapipe as mp
+    import cv2
+    _MP_AVAILABLE = True
+except Exception as _mp_import_err:
+    mp = None
+    cv2 = None
+    _MP_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        f"[BodyLanguage] mediapipe/cv2 unavailable — body language disabled: {_mp_import_err}"
+    )
 
 logger = logging.getLogger(__name__)
 
-BaseOptions = mp.tasks.BaseOptions
-PoseLandmarker = mp.tasks.vision.PoseLandmarker
-PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-PoseLandmark = mp.tasks.vision.PoseLandmark
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
+if _MP_AVAILABLE:
+    try:
+        BaseOptions = mp.tasks.BaseOptions
+        PoseLandmarker = mp.tasks.vision.PoseLandmarker
+        PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
+        PoseLandmark = mp.tasks.vision.PoseLandmark
+        HandLandmarker = mp.tasks.vision.HandLandmarker
+        HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
+        VisionRunningMode = mp.tasks.vision.RunningMode
+    except Exception as _attr_err:
+        _MP_AVAILABLE = False
+        logger.warning(f"[BodyLanguage] mediapipe Tasks API unavailable: {_attr_err}")
+        BaseOptions = PoseLandmarker = PoseLandmarkerOptions = None
+        PoseLandmark = HandLandmarker = HandLandmarkerOptions = VisionRunningMode = None
+else:
+    BaseOptions = PoseLandmarker = PoseLandmarkerOptions = None
+    PoseLandmark = HandLandmarker = HandLandmarkerOptions = VisionRunningMode = None
 
 # MediaPipe model URLs
 POSE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
@@ -41,10 +61,17 @@ class BodyLanguageAnalyzer:
     def __init__(self, confidence_threshold: float = 0.5):
         self.confidence_threshold = confidence_threshold
         self.frame_results = []
-        self.available = True
+        self.available = False
         self.error_message = None
         self.pose_landmarker = None
         self.hand_landmarker = None
+
+        if not _MP_AVAILABLE:
+            self.error_message = "mediapipe/cv2 not available"
+            logger.warning("[BodyLanguageAnalyzer] Disabled — mediapipe/cv2 unavailable.")
+            return
+
+        self.available = True
 
         # Download models
         models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "models")

@@ -8,20 +8,26 @@ import os
 import time
 from datetime import datetime
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-from rich.text import Text
-from rich import box
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+    from rich.text import Text
+    from rich import box
+    console = Console()
+except Exception:
+    Console = Table = Panel = Progress = SpinnerColumn = TextColumn = BarColumn = None
+    Text = box = None
+    class _FallbackConsole:
+        def print(self, *a, **kw): pass
+        def log(self, *a, **kw): pass
+    console = _FallbackConsole()
 
 from agent.video_processor import VideoProcessor
 from agent.analyzers.facial_expression import FacialExpressionAnalyzer
 from agent.analyzers.body_language import BodyLanguageAnalyzer
 from agent.analyzers.voice_speech import VoiceSpeechAnalyzer
-
-
-console = Console()
 
 
 class BehaviorAnalysisAgent:

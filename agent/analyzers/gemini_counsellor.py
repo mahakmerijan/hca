@@ -259,13 +259,16 @@ class GeminiCounsellor:
             print("[GeminiCounsellor] google-genai not installed.")
             return
 
-        self.client = genai.Client(
-            vertexai=True,
-            project=self._project,
-            location=self._location,
-        )
-        self.available = True
-        print(f"[GeminiCounsellor] Ready — model={self.model_name}")
+        try:
+            self.client = genai.Client(
+                vertexai=True,
+                project=self._project,
+                location=self._location,
+            )
+            self.available = True
+            print(f"[GeminiCounsellor] Ready — model={self.model_name}")
+        except Exception as _e:
+            print(f"[GeminiCounsellor] Client init failed (running without AI counsellor): {_e}")
 
     def generate_counselling(self, analysis_results: dict, user_context: dict = None) -> dict:
         if not self.available:

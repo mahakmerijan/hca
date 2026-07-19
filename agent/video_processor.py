@@ -3,13 +3,27 @@ Video Processor Module
 Handles extracting frames and audio from the input video.
 """
 
-import cv2
 import os
 import numpy as np
+
+try:
+    import cv2
+    _CV2_AVAILABLE = True
+except Exception as _cv2_err:
+    cv2 = None
+    _CV2_AVAILABLE = False
+    import logging
+    logging.getLogger(__name__).warning(f"[VideoProcessor] cv2 unavailable: {_cv2_err}")
+
 try:
     from moviepy import VideoFileClip  # moviepy v2.x
 except ImportError:
-    from moviepy.editor import VideoFileClip  # moviepy v1.x fallback
+    try:
+        from moviepy.editor import VideoFileClip  # moviepy v1.x fallback
+    except Exception as _moviepy_err:
+        VideoFileClip = None
+        import logging
+        logging.getLogger(__name__).warning(f"[VideoProcessor] moviepy unavailable: {_moviepy_err}")
 
 
 class VideoProcessor:

@@ -65,9 +65,29 @@ from werkzeug.utils import secure_filename
 
 from functools import wraps
 
-from agent.behavior_agent import BehaviorAnalysisAgent
-from agent.analyzers.gemini_counsellor import GeminiCounsellor
-from agent.analyzers.context_intake import UserContext, extract_text_from_file
+print("[Startup] Importing agent modules...")
+try:
+    from agent.behavior_agent import BehaviorAnalysisAgent
+    print("[Startup] BehaviorAnalysisAgent OK")
+except Exception as _e:
+    print(f"[Startup] BehaviorAnalysisAgent FAILED: {_e}")
+    BehaviorAnalysisAgent = None
+
+try:
+    from agent.analyzers.gemini_counsellor import GeminiCounsellor
+    print("[Startup] GeminiCounsellor OK")
+except Exception as _e:
+    print(f"[Startup] GeminiCounsellor FAILED: {_e}")
+    GeminiCounsellor = None
+
+try:
+    from agent.analyzers.context_intake import UserContext, extract_text_from_file
+    print("[Startup] context_intake OK")
+except Exception as _e:
+    print(f"[Startup] context_intake FAILED: {_e}")
+    UserContext = None
+    def extract_text_from_file(filename, data): return ""
+
 from agent.twin.form_schema import TWIN_FORM_SCHEMA
 
 # Lazy-import services to avoid circular deps at module load
@@ -98,8 +118,19 @@ jobs: dict = {}
 # Per-job user context store
 user_contexts: dict = {}
 
-# Initialise the Gemini counsellor once at startup
-gemini_counsellor = GeminiCounsellor()
+# Initialise the Gemini counsellor in a background thread so Flask starts immediately
+gemini_counsellor = None
+
+def _init_gemini():
+    global gemini_counsellor
+    if GeminiCounsellor is None:
+        return
+    try:
+        gemini_counsellor = GeminiCounsellor()
+    except Exception as _gc_err:
+        print(f"[Startup] GeminiCounsellor init failed: {_gc_err}")
+
+threading.Thread(target=_init_gemini, daemon=True).start()
 
 
 # ── JWT auth decorator ────────────────────────────────────────────
@@ -309,7 +340,10 @@ def _run_analysis(job_id: str, video_path: str):
 
         # Step 8 – Gemini AI Counsellor
         jobs[job_id]["progress"] = "🧠 AI Counsellor is analysing your behaviour…"
-        counselling = gemini_counsellor.generate_counselling(agent.results, user_context)
+        if gemini_counsellor is not None:
+            counselling = gemini_counsellor.generate_counselling(agent.results, user_context)
+        else:
+            counselling = {"error": "AI counsellor unavailable at startup"}
         agent.results["counselling"] = counselling
 
         # Cleanup analyzers
@@ -863,4 +897,5 @@ def admin_token_usage():
 if __name__ == "__main__":
     os.makedirs("uploads", exist_ok=True)
     port = int(os.environ.get("PORT", 5004))
+    print(f"[Startup] Flask starting on http://localhost:{port}")
     app.run(debug=False, host="0.0.0.0", port=port)
