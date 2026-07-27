@@ -82,9 +82,18 @@ class BodyLanguageAnalyzer:
         _download_model(HAND_MODEL_URL, self.hand_model_path)
 
         try:
+            # Force CPU delegate — avoids libGLESv2/GPU requirement on headless servers
+            cpu_base_pose = BaseOptions(
+                model_asset_path=self.pose_model_path,
+                delegate=BaseOptions.Delegate.CPU,
+            )
+            cpu_base_hand = BaseOptions(
+                model_asset_path=self.hand_model_path,
+                delegate=BaseOptions.Delegate.CPU,
+            )
             # Create Pose Landmarker
             pose_options = PoseLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=self.pose_model_path),
+                base_options=cpu_base_pose,
                 running_mode=VisionRunningMode.IMAGE,
                 min_pose_detection_confidence=confidence_threshold,
                 min_tracking_confidence=confidence_threshold,
@@ -93,7 +102,7 @@ class BodyLanguageAnalyzer:
 
             # Create Hand Landmarker
             hand_options = HandLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=self.hand_model_path),
+                base_options=cpu_base_hand,
                 running_mode=VisionRunningMode.IMAGE,
                 min_hand_detection_confidence=confidence_threshold,
                 min_tracking_confidence=confidence_threshold,
