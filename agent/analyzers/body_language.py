@@ -262,6 +262,12 @@ class BodyLanguageAnalyzer:
             self.frame_results.append(result)
             return result
 
+        # Downscale to max 640px wide to reduce memory and speed up inference
+        h, w = frame.shape[:2]
+        if w > 640:
+            scale = 640.0 / w
+            frame = cv2.resize(frame, (640, int(h * scale)), interpolation=cv2.INTER_AREA)
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         results = self.pose_landmarker.detect(mp_image)

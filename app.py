@@ -4,6 +4,7 @@ Flask application serving the upload page and analysis API.
 Integrates Gemini AI as a personal counsellor.
 """
 
+import gc
 import itertools
 import json
 import os
@@ -317,6 +318,8 @@ def _run_analysis(job_id: str, video_path: str):
         for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 60):
             agent.facial_analyzer.analyze_frame(frame, idx)
         agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
+        agent.facial_analyzer = None
+        gc.collect()
 
         # Step 5 – body language (capped at 30 frames — MediaPipe is heavy on low-CPU)
         jobs[job_id]["progress"] = "Analyzing body language…"
@@ -325,6 +328,9 @@ def _run_analysis(job_id: str, video_path: str):
         for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 30):
             agent.body_analyzer.analyze_frame(frame, idx)
         agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
+        agent.body_analyzer.release()
+        agent.body_analyzer = None
+        gc.collect()
 
         # Step 6 – voice / speech
         jobs[job_id]["progress"] = "Analyzing voice & speech…"
@@ -333,6 +339,8 @@ def _run_analysis(job_id: str, video_path: str):
         if audio_path_result:
             agent.voice_analyzer.run_full_analysis(audio_path_result)
         agent.results["voice_speech_analysis"] = agent.voice_analyzer.get_summary()
+        agent.voice_analyzer = None
+        gc.collect()
 
         # Step 7 – compute weighted predictions & basic profile
         jobs[job_id]["progress"] = "Computing predictions…"
@@ -347,11 +355,12 @@ def _run_analysis(job_id: str, video_path: str):
             counselling = {"error": "AI counsellor unavailable at startup"}
         agent.results["counselling"] = counselling
 
-        # Cleanup analyzers
-        if agent.body_analyzer:
+        # Cleanup video processor (analyzers already released above)
+        if agent.body_analyzer:  # fallback in case of early-exit path
             agent.body_analyzer.release()
         if agent.video_processor:
             agent.video_processor.release()
+        gc.collect()
 
         # Store results
         jobs[job_id]["status"] = "done"

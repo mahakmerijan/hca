@@ -43,7 +43,7 @@ class VoiceSpeechAnalyzer:
             return False
 
         try:
-            self.y, self.sr_rate = librosa.load(audio_path, sr=22050)
+            self.y, self.sr_rate = librosa.load(audio_path, sr=8000, mono=True, duration=60.0)
             self.duration = librosa.get_duration(y=self.y, sr=self.sr_rate)
             return True
         except Exception as e:
@@ -198,7 +198,7 @@ class VoiceSpeechAnalyzer:
         recognizer = sr.Recognizer()
         try:
             with sr.AudioFile(audio_path) as source:
-                audio = recognizer.record(source)
+                audio = recognizer.record(source, duration=30)  # cap at 30 s to limit memory
             text = recognizer.recognize_google(audio)
             self.transcript = text
             return text
