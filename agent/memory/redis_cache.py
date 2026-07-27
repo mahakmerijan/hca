@@ -45,7 +45,10 @@ class RedisCache:
         self._connect()
 
     def _connect(self):
-        url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        url = os.getenv("REDIS_URL", "")
+        if not url:
+            # No REDIS_URL configured — silently use in-memory store
+            return
         if not REDIS_AVAILABLE:
             print("[RedisCache] redis-py not installed — using in-memory fallback")
             return
