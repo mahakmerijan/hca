@@ -62,6 +62,24 @@ if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             print(f"[Startup] Could not write GCP credentials temp file: {_e}")
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Option C: GOOGLE_API_KEY (simplest — no GCP account needed) ──────────────
+# If no GCP credentials were configured above, fall back to a plain Gemini API
+# key. We monkey-patch genai.Client here so every module in the codebase
+# transparently uses API-key mode without any per-file code changes.
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    _ak = os.getenv("GOOGLE_API_KEY", "").strip()
+    if _ak:
+        try:
+            from google import genai as _gm
+            _OrigClient = _gm.Client
+            def _api_key_client(vertexai=None, project=None, location=None, **kw):
+                return _OrigClient(api_key=_ak, **kw)
+            _gm.Client = _api_key_client
+            print("[Startup] GOOGLE_API_KEY mode — all Gemini calls will use API key")
+        except Exception as _ex:
+            print(f"[Startup] GOOGLE_API_KEY patch failed: {_ex}")
+# ─────────────────────────────────────────────────────────────────────────────
+
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
