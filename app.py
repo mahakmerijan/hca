@@ -311,30 +311,24 @@ def _run_analysis(job_id: str, video_path: str):
         audio_tmp.close()
         audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
-        # Steps 4+5 – facial expressions AND body language in a single frame pass.
-        # Processing both together means we read each frame only once, keeping
-        # peak memory equal to one frame rather than accumulating all frames.
-        jobs[job_id]["progress"] = "Analyzing facial expressions & body language…"
-        from agent.analyzers.facial_expression import FacialExpressionAnalyzer
-        from agent.analyzers.body_language import BodyLanguageAnalyzer
-        agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        agent.body_analyzer   = BodyLanguageAnalyzer(agent.pose_confidence)
+        # Steps 4+5 – facial expressions AND body language via Gemini Vision.
+        # Frames are buffered as small JPEGs; one batched API call analyses all.
+        # Zero native ML library memory — no MediaPipe models loaded.
+        jobs[job_id]["progress"] = "Analysing facial expressions & body language with Gemini…"
+        from agent.analyzers.gemini_vision_analyzer import GeminiVisionAnalyzer
+        vision_analyzer = GeminiVisionAnalyzer(job_id=job_id)
         for idx, frame in agent.video_processor.iter_frames():
-            agent.facial_analyzer.analyze_frame(frame, idx)
-            agent.body_analyzer.analyze_frame(frame, idx)
-            # frame goes out of scope here — not accumulated in memory
-        agent.results["facial_analysis"]       = agent.facial_analyzer.get_summary()
-        agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
-        # Release ML models immediately before audio step to free memory
-        agent.facial_analyzer = None
-        agent.body_analyzer.release()
-        agent.body_analyzer = None
+            vision_analyzer.analyze_frame(frame, idx)
+        agent.results["facial_analysis"]        = vision_analyzer.get_facial_summary()
+        agent.results["body_language_analysis"] = vision_analyzer.get_body_summary()
+        vision_analyzer.release()
+        vision_analyzer = None
         gc.collect()
 
-        # Step 6 – voice / speech (full audio analysis)
-        jobs[job_id]["progress"] = "Analyzing voice & speech…"
+        # Step 6 – voice / speech via Gemini audio analysis
+        jobs[job_id]["progress"] = "Analysing voice & speech with Gemini…"
         from agent.analyzers.voice_speech import VoiceSpeechAnalyzer
-        agent.voice_analyzer = VoiceSpeechAnalyzer(agent.audio_segment_duration)
+        agent.voice_analyzer = VoiceSpeechAnalyzer(agent.audio_segment_duration, job_id=job_id)
         if audio_path_result:
             agent.voice_analyzer.run_full_analysis(audio_path_result)
         agent.results["voice_speech_analysis"] = agent.voice_analyzer.get_summary()
@@ -354,9 +348,7 @@ def _run_analysis(job_id: str, video_path: str):
             counselling = {"error": "AI counsellor unavailable at startup"}
         agent.results["counselling"] = counselling
 
-        # Cleanup video processor (analyzers already released above)
-        if agent.body_analyzer:  # fallback in case of early-exit path
-            agent.body_analyzer.release()
+        # Cleanup video processor (vision/voice analyzers already released above)
         if agent.video_processor:
             agent.video_processor.release()
         gc.collect()
@@ -365,6 +357,13 @@ def _run_analysis(job_id: str, video_path: str):
         jobs[job_id]["status"] = "done"
         jobs[job_id]["progress"] = "Complete"
         jobs[job_id]["results"] = json.loads(json.dumps(agent.results, default=str))
+
+        # Print token usage summary to console (useful in local dev)
+        try:
+            from agent.token_logger import print_job_token_summary
+            print_job_token_summary(job_id)
+        except Exception:
+            pass
 
     except Exception as exc:
         import traceback

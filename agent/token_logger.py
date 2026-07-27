@@ -239,3 +239,81 @@ def get_run_summaries(limit: int = 20) -> list:
 
 def get_log_file_path() -> str:
     return str(_LOG_FILE)
+
+
+def print_job_token_summary(job_id: str) -> None:
+    """
+    Print a formatted token + cost breakdown for a specific job_id to stdout.
+    Called at the end of each analysis job so you can see usage in the local console.
+    """
+    if not job_id:
+        return
+
+    rows: list[tuple[str, int, int, int, float]] = []  # (caller, calls, in, out, cost)
+    caller_data: dict[str, dict] = {}
+
+    try:
+        with open(_LOG_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                    if r.get("_type") == "run_summary":
+                        continue
+                    if r.get("job_id") != job_id and r.get("extra", {}).get("job_id") != job_id:
+                        # Also check nested extra.job_id
+                        if str(r.get("job_id", "")) != job_id:
+                            continue
+                    caller = r.get("caller", "unknown")
+                    d = caller_data.setdefault(caller, {"calls": 0, "inp": 0, "out": 0, "cost": 0.0})
+                    d["calls"] += 1
+                    d["inp"]   += r.get("input_tokens", 0) or 0
+                    d["out"]   += r.get("output_tokens", 0) or 0
+                    d["cost"]  += r.get("cost_usd", 0.0) or 0.0
+                except Exception:
+                    pass
+    except FileNotFoundError:
+        return
+
+    if not caller_data:
+        return
+
+    # Build rows
+    for caller, d in sorted(caller_data.items()):
+        rows.append((caller, d["calls"], d["inp"], d["out"], d["cost"]))
+
+    total_calls = sum(r[1] for r in rows)
+    total_inp   = sum(r[2] for r in rows)
+    total_out   = sum(r[3] for r in rows)
+    total_cost  = sum(r[4] for r in rows)
+
+    # Column widths
+    col_w = [max(len(r[0]) for r in rows) + 2, 6, 10, 10, 10]
+    col_w[0] = max(col_w[0], 22)
+    width = sum(col_w) + len(col_w) * 3 + 1
+
+    sep   = "─" * width
+    thick = "═" * width
+
+    lines = [
+        "",
+        f"╔{thick}╗",
+        f"║  TOKEN USAGE — Job {job_id:<{width - 22}}║",
+        f"╠{thick}╣",
+        f"║  {'Caller':<{col_w[0]}} {'Calls':>{col_w[1]}}  {'Input':>{col_w[2]}}  {'Output':>{col_w[3]}}  {'Cost (USD)':>{col_w[4]}}  ║",
+        f"║  {sep}  ║",
+    ]
+    for caller, calls, inp, out, cost in rows:
+        lines.append(
+            f"║  {caller:<{col_w[0]}} {calls:>{col_w[1]}}  {inp:>{col_w[2]},}  {out:>{col_w[3]},}  ${cost:>{col_w[4]-1}.4f}  ║"
+        )
+    lines += [
+        f"╠{thick}╣",
+        f"║  {'TOTAL':<{col_w[0]}} {total_calls:>{col_w[1]}}  {total_inp:>{col_w[2]},}  {total_out:>{col_w[3]},}  ${total_cost:>{col_w[4]-1}.4f}  ║",
+        f"╚{thick}╝",
+        "",
+    ]
+    print("\n".join(lines), flush=True)
+

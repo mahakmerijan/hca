@@ -1,426 +1,238 @@
 """
-Voice & Speech Analyzer
-Analyzes audio from video for tone, pace, energy, clarity, and speech content.
+Voice & Speech Analyzer (Gemini Edition)
+==========================================
+Replaces librosa / SpeechRecognition with a single Gemini audio API call.
+Sends the WAV file as inline audio data → Gemini returns transcription,
+pitch, pace, energy, filler-word ratio, vocabulary richness, etc.
+
+Memory: <1 MB (just the audio bytes) vs ~50 MB for librosa.
+Token usage is logged to logs/token_usage.jsonl.
 """
 
+import json
+import logging
 import os
-import numpy as np
+import re
+
+logger = logging.getLogger(__name__)
 
 try:
-    import librosa
-    LIBROSA_AVAILABLE = True
+    from google import genai
+    from google.genai import types as genai_types
+    _GENAI_AVAILABLE = True
 except ImportError:
-    LIBROSA_AVAILABLE = False
+    genai = None
+    genai_types = None
+    _GENAI_AVAILABLE = False
 
-try:
-    import speech_recognition as sr
-    SR_AVAILABLE = True
-except ImportError:
-    SR_AVAILABLE = False
+_AUDIO_PROMPT = """\
+Analyse this audio recording thoroughly. Return ONLY valid JSON — no markdown fences, no explanation.
+
+{
+  "transcript": "<full verbatim transcription — empty string if no speech detected>",
+  "word_count": <integer>,
+  "speaking_rate": {
+    "pace_label": "<very_slow|slow|ideal|fast|very_fast>",
+    "estimated_words_per_min": <integer>,
+    "estimated_syllables_per_sec": <float>
+  },
+  "pitch": {
+    "mean_pitch": <Hz as integer, typical male 80-180 Hz, female 160-300 Hz>,
+    "pitch_variation": <0.0-1.0>,
+    "pitch_stability": <0.0-1.0, 1=very consistent>
+  },
+  "energy": {
+    "mean_energy": <0.0-1.0>,
+    "energy_variation": <0.0-1.0>,
+    "energy_label": "<low|moderate|high>"
+  },
+  "pauses": {
+    "num_pauses": <integer count of noticeable pauses>,
+    "avg_pause_duration": <seconds as float>,
+    "pause_ratio": <0.0-1.0, fraction of total time spent in silence>
+  },
+  "filler_word_ratio": <0.0-1.0, e.g. 0.03 = 3 per 100 words>,
+  "vocabulary_richness": <0.0-1.0, unique/total word ratio>,
+  "confident_language_ratio": <0.0-1.0>,
+  "tone_label": "<professional|casual|nervous|assertive|warm>",
+  "scenario_scores": {
+    "job_interview": <0-100>,
+    "business_deal": <0-100>,
+    "date": <0-100>
+  }
+}
+"""
+
 
 
 class VoiceSpeechAnalyzer:
-    """Analyzes voice characteristics and speech patterns from audio."""
+    """
+    Voice & speech analyser powered by Gemini audio API.
+    Sends the extracted WAV file to Gemini and receives transcription,
+    pitch, pace, energy, filler-word ratio, vocabulary, and scenario scores.
+    """
 
-    def __init__(self, segment_duration: float = 5.0):
-        """
-        Args:
-            segment_duration: Duration in seconds for each analysis segment.
-        """
-        self.segment_duration = segment_duration
-        self.audio_features = {}
-        self.transcript = ""
-        self.speech_metrics = {}
+    def __init__(self, segment_duration: float = 5.0, job_id: str = ""):
+        self.segment_duration = segment_duration  # kept for API compatibility
+        self.job_id = job_id
+        self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+        self.audio_features: dict = {}
+        self.transcript: str = ""
+        self._client = None
 
-    def load_audio(self, audio_path: str) -> bool:
-        """Load audio file for analysis."""
-        if not os.path.exists(audio_path):
-            print(f"[VoiceSpeechAnalyzer] Audio file not found: {audio_path}")
-            return False
+        if _GENAI_AVAILABLE:
+            try:
+                self._client = genai.Client(
+                    vertexai=True,
+                    project=os.getenv("VERTEX_PROJECT", "ai-ml-integrations"),
+                    location=os.getenv("VERTEX_LOCATION", "us-central1"),
+                )
+            except Exception as exc:
+                logger.warning("[VoiceSpeechAnalyzer] Client init failed: %s", exc)
 
-        if not LIBROSA_AVAILABLE:
-            print("[VoiceSpeechAnalyzer] librosa not available. Skipping audio analysis.")
-            return False
-
-        try:
-            self.y, self.sr_rate = librosa.load(audio_path, sr=8000, mono=True, duration=120.0)
-            self.duration = librosa.get_duration(y=self.y, sr=self.sr_rate)
-            return True
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Failed to load audio: {e}")
-            return False
-
-    def analyze_pitch(self) -> dict:
-        """Analyze pitch characteristics (fundamental frequency)."""
-        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
-            return {"mean_pitch": 0, "pitch_variation": 0, "pitch_range": 0}
-
-        try:
-            # Extract pitch using librosa
-            pitches, magnitudes = librosa.piptrack(y=self.y, sr=self.sr_rate)
-            # Get the most prominent pitch at each time step
-            pitch_values = []
-            for t in range(pitches.shape[1]):
-                index = magnitudes[:, t].argmax()
-                pitch = pitches[index, t]
-                if pitch > 0:
-                    pitch_values.append(pitch)
-
-            if not pitch_values:
-                return {"mean_pitch": 0, "pitch_variation": 0, "pitch_range": 0}
-
-            pitch_array = np.array(pitch_values)
-            return {
-                "mean_pitch": round(float(np.mean(pitch_array)), 2),
-                "pitch_variation": round(float(np.std(pitch_array)), 2),
-                "pitch_range": round(float(np.max(pitch_array) - np.min(pitch_array)), 2),
-                "pitch_stability": round(
-                    max(0, 1.0 - float(np.std(pitch_array)) / (float(np.mean(pitch_array)) + 1e-8)),
-                    3,
-                ),
-            }
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Pitch analysis failed: {e}")
-            return {"mean_pitch": 0, "pitch_variation": 0, "pitch_range": 0}
-
-    def analyze_energy(self) -> dict:
-        """Analyze vocal energy and volume patterns."""
-        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
-            return {"mean_energy": 0, "energy_variation": 0}
-
-        try:
-            rms = librosa.feature.rms(y=self.y)[0]
-            return {
-                "mean_energy": round(float(np.mean(rms)), 5),
-                "energy_variation": round(float(np.std(rms)), 5),
-                "max_energy": round(float(np.max(rms)), 5),
-                "energy_consistency": round(
-                    max(0, 1.0 - float(np.std(rms)) / (float(np.mean(rms)) + 1e-8)),
-                    3,
-                ),
-                "dynamic_range": round(float(np.max(rms) - np.min(rms)), 5),
-            }
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Energy analysis failed: {e}")
-            return {"mean_energy": 0, "energy_variation": 0}
-
-    def analyze_speaking_rate(self) -> dict:
-        """Estimate speaking rate from audio onset detection."""
-        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
-            return {"estimated_syllables_per_sec": 0, "pace_score": 0.5}
-
-        try:
-            onset_frames = librosa.onset.onset_detect(y=self.y, sr=self.sr_rate)
-            onset_times = librosa.frames_to_time(onset_frames, sr=self.sr_rate)
-            num_onsets = len(onset_times)
-            syllables_per_sec = num_onsets / self.duration if self.duration > 0 else 0
-
-            # Ideal speaking rate is ~3-5 syllables/sec
-            if 3.0 <= syllables_per_sec <= 5.0:
-                pace_score = 0.9
-            elif 2.0 <= syllables_per_sec < 3.0 or 5.0 < syllables_per_sec <= 6.5:
-                pace_score = 0.7
-            elif 1.0 <= syllables_per_sec < 2.0 or 6.5 < syllables_per_sec <= 8.0:
-                pace_score = 0.5
-            else:
-                pace_score = 0.3
-
-            return {
-                "estimated_syllables_per_sec": round(syllables_per_sec, 2),
-                "num_onsets": num_onsets,
-                "duration_seconds": round(self.duration, 2),
-                "pace_score": pace_score,
-                "pace_label": self._pace_label(syllables_per_sec),
-            }
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Speaking rate analysis failed: {e}")
-            return {"estimated_syllables_per_sec": 0, "pace_score": 0.5}
-
-    def _pace_label(self, sps: float) -> str:
-        if sps < 2.0:
-            return "very_slow"
-        elif sps < 3.0:
-            return "slow"
-        elif sps <= 5.0:
-            return "ideal"
-        elif sps <= 6.5:
-            return "fast"
-        else:
-            return "very_fast"
-
-    def analyze_pauses(self) -> dict:
-        """Detect and analyze pauses in speech."""
-        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
-            return {"num_pauses": 0, "avg_pause_duration": 0, "pause_ratio": 0}
-
-        try:
-            # Detect silent intervals
-            intervals = librosa.effects.split(self.y, top_db=30)
-            if len(intervals) < 2:
-                return {"num_pauses": 0, "avg_pause_duration": 0, "pause_ratio": 0}
-
-            pauses = []
-            for i in range(1, len(intervals)):
-                gap_start = intervals[i - 1][1]
-                gap_end = intervals[i][0]
-                pause_dur = (gap_end - gap_start) / self.sr_rate
-                if pause_dur > 0.2:  # Only count pauses > 200ms
-                    pauses.append(pause_dur)
-
-            total_pause = sum(pauses)
-            pause_ratio = total_pause / self.duration if self.duration > 0 else 0
-
-            # Moderate pauses are good (thinking, emphasis); too many or too long are bad
-            if 0.1 <= pause_ratio <= 0.25:
-                pause_score = 0.85
-            elif 0.05 <= pause_ratio < 0.1 or 0.25 < pause_ratio <= 0.4:
-                pause_score = 0.65
-            else:
-                pause_score = 0.4
-
-            return {
-                "num_pauses": len(pauses),
-                "avg_pause_duration": round(np.mean(pauses) if pauses else 0, 3),
-                "total_pause_time": round(total_pause, 3),
-                "pause_ratio": round(pause_ratio, 3),
-                "pause_score": pause_score,
-            }
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Pause analysis failed: {e}")
-            return {"num_pauses": 0, "avg_pause_duration": 0, "pause_ratio": 0}
-
-    def transcribe_speech(self, audio_path: str) -> str:
-        """Transcribe speech to text using SpeechRecognition."""
-        if not SR_AVAILABLE:
-            print("[VoiceSpeechAnalyzer] SpeechRecognition not available.")
-            return ""
-
-        recognizer = sr.Recognizer()
-        try:
-            with sr.AudioFile(audio_path) as source:
-                audio = recognizer.record(source, duration=60)  # cap at 60 s to limit memory
-            text = recognizer.recognize_google(audio)
-            self.transcript = text
-            return text
-        except sr.UnknownValueError:
-            print("[VoiceSpeechAnalyzer] Could not understand audio.")
-            return ""
-        except sr.RequestError as e:
-            print(f"[VoiceSpeechAnalyzer] Transcription service error: {e}")
-            return ""
-        except Exception as e:
-            print(f"[VoiceSpeechAnalyzer] Transcription failed: {e}")
-            return ""
-
-    def analyze_speech_content(self) -> dict:
-        """Analyze transcribed speech for filler words, vocabulary, etc."""
-        if not self.transcript:
-            return {
-                "word_count": 0,
-                "filler_word_ratio": 0,
-                "vocabulary_richness": 0,
-                "content_score": 0.5,
-            }
-
-        words = self.transcript.lower().split()
-        word_count = len(words)
-
-        # Count filler words
-        fillers = {"um", "uh", "like", "you know", "basically", "actually",
-                   "literally", "honestly", "right", "so", "well", "er", "ah"}
-        filler_count = sum(1 for w in words if w in fillers)
-        filler_ratio = filler_count / word_count if word_count > 0 else 0
-
-        # Vocabulary richness (unique words / total words)
-        unique_words = len(set(words))
-        vocab_richness = unique_words / word_count if word_count > 0 else 0
-
-        # Positive/confident language
-        confident_words = {"confident", "certainly", "absolutely", "definitely",
-                           "achieve", "successful", "excellent", "great",
-                           "experience", "skills", "passion", "dedicated",
-                           "innovative", "creative", "leadership", "team"}
-        confident_count = sum(1 for w in words if w in confident_words)
-        confidence_word_ratio = confident_count / word_count if word_count > 0 else 0
-
-        # Content score
-        content_score = 0.5
-        content_score += (1.0 - min(filler_ratio * 5, 0.5)) * 0.3  # Fewer fillers = better
-        content_score += min(vocab_richness, 1.0) * 0.2
-        content_score += min(confidence_word_ratio * 10, 0.3)
-
-        return {
-            "word_count": word_count,
-            "filler_word_count": filler_count,
-            "filler_word_ratio": round(filler_ratio, 3),
-            "vocabulary_richness": round(vocab_richness, 3),
-            "confident_language_ratio": round(confidence_word_ratio, 3),
-            "content_score": round(min(content_score, 1.0), 3),
-            "transcript_preview": self.transcript[:200] + "..." if len(self.transcript) > 200 else self.transcript,
-        }
+    # ── Core analysis ─────────────────────────────────────────────────────────
 
     def run_full_analysis(self, audio_path: str) -> dict:
-        """Run all voice and speech analyses."""
-        loaded = self.load_audio(audio_path)
+        """Send audio to Gemini for full voice & speech analysis."""
+        if not os.path.exists(audio_path):
+            print(f"[VoiceSpeechAnalyzer] Audio file not found: {audio_path}", flush=True)
+            self.audio_features = _fallback_audio_features()
+            return self.audio_features
 
-        pitch = self.analyze_pitch() if loaded else {}
-        energy = self.analyze_energy() if loaded else {}
-        speaking_rate = self.analyze_speaking_rate() if loaded else {}
-        pauses = self.analyze_pauses() if loaded else {}
+        if self._client is None or not _GENAI_AVAILABLE:
+            print("[VoiceSpeechAnalyzer] No Gemini client — using fallback.", flush=True)
+            self.audio_features = _fallback_audio_features()
+            return self.audio_features
 
-        # Transcription
-        self.transcribe_speech(audio_path)
-        speech_content = self.analyze_speech_content()
+        try:
+            with open(audio_path, "rb") as f:
+                audio_bytes = f.read()
+
+            from agent.token_logger import log_call, extract_token_counts
+            response = self._client.models.generate_content(
+                model=self.model_name,
+                contents=genai_types.Content(
+                    parts=[
+                        genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                        genai_types.Part(text=_AUDIO_PROMPT),
+                    ],
+                    role="user",
+                ),
+                config={"temperature": 0.1},
+            )
+            inp, out = extract_token_counts(response)
+            log_call(
+                self.model_name, "GeminiVoiceAnalyzer", inp, out,
+                extra={"job_id": self.job_id, "audio_bytes": len(audio_bytes)},
+            )
+            print(
+                f"[VoiceSpeechAnalyzer] Audio analysed — "
+                f"{inp:,} in / {out:,} out tokens",
+                flush=True,
+            )
+
+            text = response.text.strip()
+            text = re.sub(r"^```[a-z]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text.strip())
+            m = re.search(r"\{.*\}", text, re.DOTALL)
+            if m:
+                text = m.group(0)
+            data = json.loads(text)
+
+        except Exception as exc:
+            logger.error("[VoiceSpeechAnalyzer] API call failed: %s", exc)
+            print(f"[VoiceSpeechAnalyzer] Fallback due to error: {exc}", flush=True)
+            self.audio_features = _fallback_audio_features()
+            return self.audio_features
+
+        # Map Gemini response → existing audio_features structure
+        sr_data = data.get("speaking_rate", {})
+        self.transcript = data.get("transcript", "")
+        word_count = data.get("word_count", len(self.transcript.split()) if self.transcript else 0)
+        filler_ratio = data.get("filler_word_ratio", 0.0)
+        vocab_richness = data.get("vocabulary_richness", 0.5)
+        conf_lang = data.get("confident_language_ratio", 0.5)
 
         self.audio_features = {
-            "pitch": pitch,
-            "energy": energy,
-            "speaking_rate": speaking_rate,
-            "pauses": pauses,
-            "speech_content": speech_content,
-            "audio_loaded": loaded,
+            "audio_loaded": True,
+            "pitch": {
+                "mean_pitch":       data.get("pitch", {}).get("mean_pitch", 150),
+                "pitch_variation":  data.get("pitch", {}).get("pitch_variation", 0.3),
+                "pitch_stability":  data.get("pitch", {}).get("pitch_stability", 0.7),
+            },
+            "energy": data.get("energy", {"mean_energy": 0.5, "energy_variation": 0.3, "energy_label": "moderate"}),
+            "speaking_rate": {
+                "pace_label":               sr_data.get("pace_label", "ideal"),
+                "estimated_syllables_per_sec": sr_data.get("estimated_syllables_per_sec", 3.5),
+                "estimated_words_per_min":  sr_data.get("estimated_words_per_min", 130),
+                "pace_score": _pace_score(sr_data.get("pace_label", "ideal")),
+            },
+            "pauses": {
+                "num_pauses":        data.get("pauses", {}).get("num_pauses", 0),
+                "avg_pause_duration": data.get("pauses", {}).get("avg_pause_duration", 0.0),
+                "pause_ratio":       data.get("pauses", {}).get("pause_ratio", 0.1),
+                "pause_score":       0.75,
+            },
+            "speech_content": {
+                "word_count":               word_count,
+                "filler_word_ratio":        round(filler_ratio, 3),
+                "vocabulary_richness":      round(vocab_richness, 3),
+                "confident_language_ratio": round(conf_lang, 3),
+                "content_score":            round(
+                    0.5 + (1.0 - min(filler_ratio * 5, 0.5)) * 0.3
+                        + min(vocab_richness, 1.0) * 0.2
+                        + min(conf_lang * 10, 0.3),
+                    3,
+                ),
+                "transcript_preview": self.transcript[:200] + ("…" if len(self.transcript) > 200 else ""),
+            },
         }
-
         return self.audio_features
 
-    def get_voice_score(self) -> dict:
-        """
-        Compute overall voice/speech scores for each scenario.
-
-        Returns:
-            Dict with scores for job_interview, business_deal, date (0-100).
-        """
-        if not self.audio_features or not self.audio_features.get("audio_loaded"):
-            return {"job_interview": 50.0, "business_deal": 50.0, "date": 50.0}
-
-        pitch = self.audio_features.get("pitch", {})
-        energy = self.audio_features.get("energy", {})
-        rate = self.audio_features.get("speaking_rate", {})
-        pauses = self.audio_features.get("pauses", {})
-        content = self.audio_features.get("speech_content", {})
-
-        pitch_stability = pitch.get("pitch_stability", 0.5)
-        energy_consistency = energy.get("energy_consistency", 0.5)
-        pace_score = rate.get("pace_score", 0.5)
-        pause_score = pauses.get("pause_score", 0.5)
-        content_score = content.get("content_score", 0.5)
-
-        # Job interview: clarity and content matter most
-        job_score = (pitch_stability * 0.15 + energy_consistency * 0.15 +
-                     pace_score * 0.25 + pause_score * 0.15 + content_score * 0.30) * 100
-
-        # Business deal: energy and confidence matter most
-        biz_score = (pitch_stability * 0.15 + energy_consistency * 0.20 +
-                     pace_score * 0.20 + pause_score * 0.15 + content_score * 0.30) * 100
-
-        # Date: warmth and natural flow matter most
-        date_score = (pitch_stability * 0.20 + energy_consistency * 0.20 +
-                      pace_score * 0.25 + pause_score * 0.20 + content_score * 0.15) * 100
-
-        return {
-            "job_interview": round(min(job_score, 100), 2),
-            "business_deal": round(min(biz_score, 100), 2),
-            "date": round(min(date_score, 100), 2),
-        }
+    # ── Summary (same format as old analyzer) ────────────────────────────────
 
     def get_summary(self) -> dict:
-        """Get full summary of voice/speech analysis."""
         return {
-            "audio_features": self.audio_features,
-            "scenario_scores": self.get_voice_score(),
+            "audio_features":       self.audio_features,
+            "scenario_scores":      self._scenario_scores(),
             "transcript_available": bool(self.transcript),
-            "full_transcript": self.transcript,
-            "dialogue_issues": self.analyze_dialogue_issues(),
+            "full_transcript":      self.transcript,
+            "dialogue_issues":      [],   # Gemini counsellor handles dialogue coaching
         }
 
-    def _seconds_to_ts(self, seconds: float) -> str:
-        total_s = int(round(seconds))
-        m, s = divmod(total_s, 60)
-        return f"{m:02d}:{s:02d}"
+    def _scenario_scores(self) -> dict:
+        if not self.audio_features or not self.audio_features.get("audio_loaded"):
+            return {"job_interview": 50.0, "business_deal": 50.0, "date": 50.0}
+        pitch_stab  = self.audio_features.get("pitch", {}).get("pitch_stability", 0.5)
+        energy_cons = 1.0 - self.audio_features.get("energy", {}).get("energy_variation", 0.3)
+        pace_sc     = self.audio_features.get("speaking_rate", {}).get("pace_score", 0.5)
+        pause_sc    = self.audio_features.get("pauses", {}).get("pause_score", 0.5)
+        content_sc  = self.audio_features.get("speech_content", {}).get("content_score", 0.5)
+        job = (pitch_stab * 0.15 + energy_cons * 0.15 + pace_sc * 0.25 + pause_sc * 0.15 + content_sc * 0.30) * 100
+        biz = (pitch_stab * 0.15 + energy_cons * 0.20 + pace_sc * 0.20 + pause_sc * 0.15 + content_sc * 0.30) * 100
+        date = (pitch_stab * 0.20 + energy_cons * 0.20 + pace_sc * 0.25 + pause_sc * 0.20 + content_sc * 0.15) * 100
+        return {
+            "job_interview": round(min(job,  100), 2),
+            "business_deal": round(min(biz,  100), 2),
+            "date":          round(min(date, 100), 2),
+        }
 
-    def analyze_dialogue_issues(self) -> list:
-        """
-        Return timestamped list of specific dialogue moments that felt off:
-        - Filler words with estimated position and surrounding context
-        - Segments where pace was too fast or too slow
-        - Long hesitation pauses (>1.5s)
-        """
-        if not LIBROSA_AVAILABLE or not hasattr(self, "y"):
-            return []
 
-        issues = []
-        FILLER_WORDS = {"um", "uh", "like", "you know", "basically", "actually",
-                        "literally", "honestly", "right", "so", "well", "er", "ah"}
-        SEGMENT_SEC = 5.0
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-        # ── 1. Per-segment pace & long-pause detection ────────────────────────
-        total_segs = int(self.duration / SEGMENT_SEC) + 1
-        for seg_idx in range(total_segs):
-            t0 = seg_idx * SEGMENT_SEC
-            t1 = min(t0 + SEGMENT_SEC, self.duration)
-            if t1 <= t0:
-                break
-            s0, s1 = int(t0 * self.sr_rate), int(t1 * self.sr_rate)
-            y_seg = self.y[s0:s1]
+def _fallback_audio_features() -> dict:
+    return {
+        "audio_loaded": False,
+        "pitch": {"mean_pitch": 0, "pitch_variation": 0, "pitch_stability": 0.5},
+        "energy": {"mean_energy": 0, "energy_variation": 0, "energy_label": "moderate"},
+        "speaking_rate": {"pace_label": "ideal", "estimated_syllables_per_sec": 0,
+                          "estimated_words_per_min": 0, "pace_score": 0.5},
+        "pauses": {"num_pauses": 0, "avg_pause_duration": 0, "pause_ratio": 0, "pause_score": 0.5},
+        "speech_content": {"word_count": 0, "filler_word_ratio": 0,
+                            "vocabulary_richness": 0.5, "confident_language_ratio": 0.5,
+                            "content_score": 0.5, "transcript_preview": ""},
+    }
 
-            try:
-                onsets = librosa.onset.onset_detect(y=y_seg, sr=self.sr_rate)
-                sps = len(onsets) / (t1 - t0)
-                if sps > 6.5:
-                    issues.append({
-                        "timestamp": self._seconds_to_ts(t0),
-                        "end_timestamp": self._seconds_to_ts(t1),
-                        "issue_type": "pace",
-                        "reason": f"speaking too fast ({sps:.1f} syllables/sec — aim for 3–5)",
-                        "text_fragment": "",
-                    })
-                elif 0 < sps < 1.5:
-                    issues.append({
-                        "timestamp": self._seconds_to_ts(t0),
-                        "end_timestamp": self._seconds_to_ts(t1),
-                        "issue_type": "pace",
-                        "reason": f"speaking too slow ({sps:.1f} syllables/sec — aim for 3–5)",
-                        "text_fragment": "",
-                    })
-            except Exception:
-                pass
 
-            try:
-                intervals = librosa.effects.split(y_seg, top_db=30)
-                for i in range(1, len(intervals)):
-                    gap_samples = intervals[i][0] - intervals[i - 1][1]
-                    pause_dur = gap_samples / self.sr_rate
-                    if pause_dur > 1.5:
-                        pause_abs = t0 + intervals[i - 1][1] / self.sr_rate
-                        issues.append({
-                            "timestamp": self._seconds_to_ts(pause_abs),
-                            "end_timestamp": self._seconds_to_ts(pause_abs + pause_dur),
-                            "issue_type": "pause",
-                            "reason": f"long silence ({pause_dur:.1f}s — sounds hesitant)",
-                            "text_fragment": "",
-                        })
-            except Exception:
-                pass
-
-        # ── 2. Filler-word positions estimated from word distribution ─────────
-        if self.transcript:
-            words = self.transcript.lower().split()
-            total_words = len(words)
-            if total_words > 0:
-                word_dur = self.duration / total_words  # avg seconds per word
-                for wi, word in enumerate(words):
-                    if word in FILLER_WORDS:
-                        t_est = wi * word_dur
-                        ctx_start = max(0, wi - 3)
-                        ctx_end = min(total_words, wi + 4)
-                        context = " ".join(words[ctx_start:ctx_end])
-                        issues.append({
-                            "timestamp": self._seconds_to_ts(t_est),
-                            "end_timestamp": self._seconds_to_ts(min(t_est + word_dur, self.duration)),
-                            "issue_type": "filler",
-                            "reason": f'filler word: "{word}"',
-                            "text_fragment": f"…{context}…",
-                        })
-
-        issues.sort(key=lambda x: x["timestamp"])
-        return issues
+def _pace_score(label: str) -> float:
+    return {"very_slow": 0.3, "slow": 0.6, "ideal": 0.9, "fast": 0.65, "very_fast": 0.35}.get(label, 0.5)
