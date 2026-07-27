@@ -4,6 +4,7 @@ Flask application serving the upload page and analysis API.
 Integrates Gemini AI as a personal counsellor.
 """
 
+import itertools
 import json
 import os
 import tempfile
@@ -158,7 +159,7 @@ def get_default_config(video_path: str) -> dict:
     return {
         "video_path": video_path,
         "analysis": {
-            "frame_sample_rate": 30,
+            "frame_sample_rate": 90,  # every 3 s at 30 fps — faster on low-CPU hosts
             "face_confidence_threshold": 0.5,
             "pose_confidence_threshold": 0.5,
             "audio_segment_duration": 5,
@@ -309,19 +310,19 @@ def _run_analysis(job_id: str, video_path: str):
         audio_tmp.close()
         audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
-        # Step 4 – facial expressions
+        # Step 4 – facial expressions (capped at 60 frames to bound runtime)
         jobs[job_id]["progress"] = "Analyzing facial expressions…"
         from agent.analyzers.facial_expression import FacialExpressionAnalyzer
         agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        for idx, frame in agent.video_processor.iter_frames():
+        for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 60):
             agent.facial_analyzer.analyze_frame(frame, idx)
         agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
 
-        # Step 5 – body language
+        # Step 5 – body language (capped at 30 frames — MediaPipe is heavy on low-CPU)
         jobs[job_id]["progress"] = "Analyzing body language…"
         from agent.analyzers.body_language import BodyLanguageAnalyzer
         agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
-        for idx, frame in agent.video_processor.iter_frames():
+        for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 30):
             agent.body_analyzer.analyze_frame(frame, idx)
         agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
 
