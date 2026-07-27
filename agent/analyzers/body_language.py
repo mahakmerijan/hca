@@ -17,9 +17,9 @@ def _preload_gles_stub():
     MediaPipe wheels hard-link against libGLESv2.so.2 at the ELF level.
     On headless servers (no GPU/display) that library doesn't exist, so
     dlopen fails even in CPU-only mode.
-    Fix: compile a minimal stub .so with the right SONAME and preload it
-    via ctypes so the dynamic linker finds it already mapped when mediapipe
-    tries to open it.
+    Fix: inspect all mediapipe .so files with `nm -u` to discover every
+    undefined GL/EGL symbol, generate a C stub that exports them all as
+    no-ops, compile it, then preload via ctypes before mediapipe imports.
     """
     try:
         ctypes.CDLL("libGLESv2.so.2")
@@ -27,24 +27,95 @@ def _preload_gles_stub():
     except OSError:
         pass
 
-    stub = "/tmp/libGLESv2.so.2"
-    if not os.path.exists(stub):
-        try:
-            subprocess.run(
-                [
-                    "gcc", "-shared", "-fPIC",
-                    "-Wl,-soname,libGLESv2.so.2",
-                    "-o", stub,
-                    "-x", "c", "/dev/null",   # compile an empty C file
-                ],
-                capture_output=True,
-                timeout=15,
-            )
-        except Exception:
-            return  # gcc not available; give up gracefully
+    stub_so  = "/tmp/libGLESv2.so.2"
+    stub_src = "/tmp/_gles2_stub.c"
+
+    # --- discover all undefined GL/EGL symbols in mediapipe's .so files ---
+    gl_syms: set = set()
+    try:
+        import site, glob
+        search_dirs = site.getsitepackages() + [site.getusersitepackages()]
+        for base in search_dirs:
+            for so in glob.glob(f"{base}/mediapipe/**/*.so*", recursive=True):
+                result = subprocess.run(
+                    ["nm", "-u", so],
+                    capture_output=True, text=True, timeout=10,
+                )
+                for line in result.stdout.splitlines():
+                    # nm -u lines look like: "                 U glBindBuffer"
+                    parts = line.strip().split()
+                    if parts and parts[-1].startswith(("gl", "egl", "GL", "EGL")):
+                        gl_syms.add(parts[-1])
+    except Exception:
+        pass  # nm not available; fall through to compile empty stub
+
+    # --- write C stub with all discovered symbols (plus a safe baseline) ---
+    baseline = {
+        # GLES 2.0 core symbols mediapipe commonly calls
+        "glActiveTexture","glAttachShader","glBindAttribLocation",
+        "glBindBuffer","glBindFramebuffer","glBindRenderbuffer","glBindTexture",
+        "glBlendColor","glBlendEquation","glBlendEquationSeparate",
+        "glBlendFunc","glBlendFuncSeparate",
+        "glBufferData","glBufferSubData","glCheckFramebufferStatus",
+        "glClear","glClearColor","glClearDepthf","glClearStencil",
+        "glColorMask","glCompileShader","glCompressedTexImage2D",
+        "glCompressedTexSubImage2D","glCopyTexImage2D","glCopyTexSubImage2D",
+        "glCreateProgram","glCreateShader","glCullFace",
+        "glDeleteBuffers","glDeleteFramebuffers","glDeleteProgram",
+        "glDeleteRenderbuffers","glDeleteShader","glDeleteTextures",
+        "glDepthFunc","glDepthMask","glDepthRangef","glDetachShader",
+        "glDisable","glDisableVertexAttribArray","glDrawArrays","glDrawElements",
+        "glEnable","glEnableVertexAttribArray","glFinish","glFlush",
+        "glFramebufferRenderbuffer","glFramebufferTexture2D","glFrontFace",
+        "glGenBuffers","glGenerateMipmap","glGenFramebuffers","glGenRenderbuffers",
+        "glGenTextures","glGetActiveAttrib","glGetActiveUniform",
+        "glGetAttachedShaders","glGetAttribLocation","glGetBooleanv",
+        "glGetBufferParameteriv","glGetError","glGetFloatv","glGetFramebufferAttachmentParameteriv",
+        "glGetIntegerv","glGetProgramInfoLog","glGetProgramiv","glGetRenderbufferParameteriv",
+        "glGetShaderInfoLog","glGetShaderiv","glGetShaderPrecisionFormat",
+        "glGetShaderSource","glGetString","glGetTexParameterfv","glGetTexParameteriv",
+        "glGetUniformfv","glGetUniformiv","glGetUniformLocation","glGetVertexAttribfv",
+        "glGetVertexAttribiv","glGetVertexAttribPointerv","glHint","glIsBuffer",
+        "glIsEnabled","glIsFramebuffer","glIsProgram","glIsRenderbuffer",
+        "glIsShader","glIsTexture","glLineWidth","glLinkProgram",
+        "glPixelStorei","glPolygonOffset","glReadPixels","glReleaseShaderCompiler",
+        "glRenderbufferStorage","glSampleCoverage","glScissor","glShaderBinary",
+        "glShaderSource","glStencilFunc","glStencilFuncSeparate","glStencilMask",
+        "glStencilMaskSeparate","glStencilOp","glStencilOpSeparate","glTexImage2D",
+        "glTexParameterf","glTexParameterfv","glTexParameteri","glTexParameteriv",
+        "glTexSubImage2D","glUniform1f","glUniform1fv","glUniform1i","glUniform1iv",
+        "glUniform2f","glUniform2fv","glUniform2i","glUniform2iv","glUniform3f",
+        "glUniform3fv","glUniform3i","glUniform3iv","glUniform4f","glUniform4fv",
+        "glUniform4i","glUniform4iv","glUniformMatrix2fv","glUniformMatrix3fv",
+        "glUniformMatrix4fv","glUseProgram","glValidateProgram","glVertexAttrib1f",
+        "glVertexAttrib1fv","glVertexAttrib2f","glVertexAttrib2fv","glVertexAttrib3f",
+        "glVertexAttrib3fv","glVertexAttrib4f","glVertexAttrib4fv",
+        "glVertexAttribPointer","glViewport",
+        # EGL symbols mediapipe may need
+        "eglGetDisplay","eglInitialize","eglBindAPI","eglChooseConfig",
+        "eglCreateContext","eglCreateWindowSurface","eglCreatePbufferSurface",
+        "eglMakeCurrent","eglSwapBuffers","eglDestroyContext","eglDestroySurface",
+        "eglTerminate","eglGetError","eglReleaseThread","eglGetProcAddress",
+    }
+    all_syms = gl_syms | baseline
+
+    with open(stub_src, "w") as f:
+        f.write("/* auto-generated GLES/EGL stub for headless MediaPipe */\n")
+        f.write("#include <stddef.h>\n")
+        for sym in sorted(all_syms):
+            f.write(f"void {sym}(void){{}} \n")
 
     try:
-        ctypes.CDLL(stub)   # map stub into process — satisfies future dlopen
+        subprocess.run(
+            [
+                "gcc", "-shared", "-fPIC",
+                "-Wl,-soname,libGLESv2.so.2",
+                "-o", stub_so,
+                stub_src,
+            ],
+            capture_output=True, timeout=30,
+        )
+        ctypes.CDLL(stub_so)
     except Exception:
         pass
 
