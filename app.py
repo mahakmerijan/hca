@@ -311,28 +311,27 @@ def _run_analysis(job_id: str, video_path: str):
         audio_tmp.close()
         audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
-        # Step 4 – facial expressions (capped at 60 frames to bound runtime)
-        jobs[job_id]["progress"] = "Analyzing facial expressions…"
+        # Steps 4+5 – facial expressions AND body language in a single frame pass.
+        # Processing both together means we read each frame only once, keeping
+        # peak memory equal to one frame rather than accumulating all frames.
+        jobs[job_id]["progress"] = "Analyzing facial expressions & body language…"
         from agent.analyzers.facial_expression import FacialExpressionAnalyzer
-        agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 60):
-            agent.facial_analyzer.analyze_frame(frame, idx)
-        agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
-        agent.facial_analyzer = None
-        gc.collect()
-
-        # Step 5 – body language (capped at 30 frames — MediaPipe is heavy on low-CPU)
-        jobs[job_id]["progress"] = "Analyzing body language…"
         from agent.analyzers.body_language import BodyLanguageAnalyzer
-        agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
-        for idx, frame in itertools.islice(agent.video_processor.iter_frames(), 30):
+        agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
+        agent.body_analyzer   = BodyLanguageAnalyzer(agent.pose_confidence)
+        for idx, frame in agent.video_processor.iter_frames():
+            agent.facial_analyzer.analyze_frame(frame, idx)
             agent.body_analyzer.analyze_frame(frame, idx)
+            # frame goes out of scope here — not accumulated in memory
+        agent.results["facial_analysis"]       = agent.facial_analyzer.get_summary()
         agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
+        # Release ML models immediately before audio step to free memory
+        agent.facial_analyzer = None
         agent.body_analyzer.release()
         agent.body_analyzer = None
         gc.collect()
 
-        # Step 6 – voice / speech
+        # Step 6 – voice / speech (full audio analysis)
         jobs[job_id]["progress"] = "Analyzing voice & speech…"
         from agent.analyzers.voice_speech import VoiceSpeechAnalyzer
         agent.voice_analyzer = VoiceSpeechAnalyzer(agent.audio_segment_duration)

@@ -461,7 +461,9 @@ class BodyLanguageAnalyzer:
 
     def release(self):
         """Release MediaPipe resources."""
-        if hasattr(self, 'pose_landmarker'):
+        if self.pose_landmarker is not None:
             self.pose_landmarker.close()
-        if hasattr(self, 'hand_landmarker'):
+            self.pose_landmarker = None
+        if self.hand_landmarker is not None:
             self.hand_landmarker.close()
+            self.hand_landmarker = None
