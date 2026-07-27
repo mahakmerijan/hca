@@ -3,11 +3,54 @@ Body Language Analyzer
 Uses MediaPipe Pose (Tasks API) to analyze posture, gestures, and body language confidence.
 """
 
+import ctypes
 import logging
 import math
 import os
+import subprocess
 import urllib.request
 import numpy as np
+
+
+def _preload_gles_stub():
+    """
+    MediaPipe wheels hard-link against libGLESv2.so.2 at the ELF level.
+    On headless servers (no GPU/display) that library doesn't exist, so
+    dlopen fails even in CPU-only mode.
+    Fix: compile a minimal stub .so with the right SONAME and preload it
+    via ctypes so the dynamic linker finds it already mapped when mediapipe
+    tries to open it.
+    """
+    try:
+        ctypes.CDLL("libGLESv2.so.2")
+        return  # already present — nothing to do
+    except OSError:
+        pass
+
+    stub = "/tmp/libGLESv2.so.2"
+    if not os.path.exists(stub):
+        try:
+            subprocess.run(
+                [
+                    "gcc", "-shared", "-fPIC",
+                    "-Wl,-soname,libGLESv2.so.2",
+                    "-o", stub,
+                    "-x", "c", "/dev/null",   # compile an empty C file
+                ],
+                capture_output=True,
+                timeout=15,
+            )
+        except Exception:
+            return  # gcc not available; give up gracefully
+
+    try:
+        ctypes.CDLL(stub)   # map stub into process — satisfies future dlopen
+    except Exception:
+        pass
+
+
+_preload_gles_stub()
+
 
 try:
     import mediapipe as mp
