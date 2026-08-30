@@ -179,11 +179,13 @@ class FeedbackGenerator:
                 "failure_story": f"In failed runs you showed hesitation under curveball questions.",
             })
 
+        best_area  = sorted_cats[0][0].replace('_', ' ').title() if sorted_cats else 'N/A'
+        worst_area = sorted_cats[-1][0].replace('_', ' ').title() if len(sorted_cats) > 1 else best_area
         return {
             "executive_summary": (
-                f"Your Digital Twin completed {total} simulations with a {overall}% overall success rate. "
-                f"Enable Gemini API for deep coaching insights. "
-                f"Your strongest area was {sorted_cats[0][0].replace('_', ' ') if sorted_cats else 'unknown'}."
+                f"Your Digital Twin completed {total} simulation{'s' if total != 1 else ''} with a {overall}% overall success rate. "
+                f"Your strongest area was {best_area} "
+                + (f"and the biggest growth opportunity is {worst_area}." if len(sorted_cats) > 1 else ".")
             ),
             "headline_stats": {
                 "overall_success_rate": overall,
@@ -194,8 +196,8 @@ class FeedbackGenerator:
             "scenario_verdicts": scenario_verdicts,
             "failure_breakdown": [],
             "personality_insights": [],
-            "comparison_insight": "Enable Gemini API for full personality comparison analysis.",
-            "the_one_thing": "Focus on your weakest scenario first for maximum improvement.",
+            "comparison_insight": f"You performed best in {best_area} scenarios. Focus additional practice on {worst_area} to close the gap.",
+            "the_one_thing": f"Prioritise improving your performance in {worst_area} scenarios — that's where the biggest gains are.",
             "30_day_plan": [
                 {"week": 1, "focus": "Identify core weakness", "daily_drill": "Practice answering curveball questions for 10 minutes daily"},
                 {"week": 2, "focus": "Build confidence", "daily_drill": "Record yourself pitching and review body language"},

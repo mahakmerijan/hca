@@ -143,7 +143,17 @@ class SimulationService:
 
     def get_results(self, sim_id: str) -> List[dict]:
         sim = self.get_simulation(sim_id)
-        return sim.get("results", []) if sim else []
+        if not sim:
+            return []
+        results = list(sim.get("results") or [])
+        # Include custom_result as a regular result entry so analysis sees it
+        cr = sim.get("custom_result")
+        if cr and isinstance(cr, dict):
+            entry = dict(cr)
+            entry.setdefault("scenario_num", len(results) + 1)
+            entry.setdefault("category", cr.get("category", "custom"))
+            results.append(entry)
+        return results
 
     # ── Background execution ──────────────────────────────────────
 

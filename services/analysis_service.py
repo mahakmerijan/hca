@@ -73,6 +73,7 @@ class AnalysisService:
         simulation_results: List[dict],
         user_id: str,
         twin_persona: dict,
+        video_analysis: dict = None,
     ) -> dict:
         """
         Full analysis pipeline for a completed simulation run.
@@ -92,6 +93,7 @@ class AnalysisService:
             simulation_results=simulation_results,
             user_id=user_id,
             session_id=session_id,
+            video_analysis=video_analysis or {},
         )
 
         # Step 2: Feedback generation — runs concurrently with _save_analysis

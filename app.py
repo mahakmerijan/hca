@@ -827,6 +827,18 @@ def simulation_get(sim_id):
             "outcome":       r.get("verdict", ""),
             "conversation":  r.get("conversation", []),
         })
+    # Also expose custom_result as the last turn so the frontend can display it
+    cr = sim.get("custom_result")
+    if cr and isinstance(cr, dict):
+        all_turns.append({
+            "scenario_num":  len(results) + 1,
+            "total":         sim["total"],
+            "category":      cr.get("category", "custom"),
+            "counter_party": cr.get("counter_party_name", "Custom Person"),
+            "score":         cr.get("overall_score", 0),
+            "outcome":       cr.get("verdict", ""),
+            "conversation":  cr.get("conversation", []),
+        })
     return jsonify({
         "sim_id":        sim["sim_id"],
         "status":        sim["status"],
@@ -836,7 +848,7 @@ def simulation_get(sim_id):
         "error":         sim.get("error"),
         "live_turn":     sim.get("live_turn"),
         "all_turns":     all_turns,
-        "custom_result": sim.get("custom_result"),
+        "custom_result": cr,
     })
 
 
@@ -890,11 +902,20 @@ def analysis_run(sim_id):
 
     sim_results = sim_svc.get_results(sim_id)
 
+    # Extract video analysis from twin profile for richer coaching
+    video_analysis = {}
+    if twin:
+        profile = twin.get("profile", {})
+        video_analysis = profile.get("embodied_model", {}).get("video_derived", {})
+        if not video_analysis:
+            video_analysis = twin.get("video_analysis", {})
+
     result = analysis_svc.run_analysis(
         sim_id=sim_id,
         simulation_results=sim_results,
         user_id=request.user_id,
         twin_persona=twin.get("persona", {}) if twin else {},
+        video_analysis=video_analysis,
     )
     result["conversation_gists"] = _build_conversation_gists(sim_results, limit=5)
     return jsonify(result)

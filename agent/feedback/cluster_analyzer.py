@@ -355,6 +355,7 @@ class FailureClusterAnalyzer:
         simulation_results: List[dict],
         user_id: str = "default",
         session_id: Optional[str] = None,
+        video_analysis: dict = None,
     ) -> dict:
         """
         Run full cluster analysis pipeline on simulation results.
@@ -733,5 +734,20 @@ class FailureClusterAnalyzer:
         tags  = self._compute_tags(results)
         pm    = self._compute_personality_matrix(results)
         report = self._build_report(stats, tags, pm, None)
-        report["critical_insight"] = "Enable Gemini API for deep cluster analysis."
+        total = stats.get('total', 0)
+        rate  = stats.get('overall_success_rate', 0)
+        # Build meaningful insight from actual conversation data
+        conv_insights = []
+        for r in results[:3]:
+            conv = r.get('conversation', [])
+            twin_lines = [m['content'] for m in conv if m.get('role') == 'twin']
+            if twin_lines:
+                conv_insights.append(twin_lines[0][:100])
+        top_tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)[:3]
+        tag_str = ', '.join(f[0] for f in top_tags) if top_tags else 'communication patterns'
+        report["critical_insight"] = (
+            f"Across {total} simulation{'s' if total != 1 else ''} your twin achieved a {rate}% success rate. "
+            f"Key areas identified for improvement: {tag_str}. "
+            f"Review the conversation breakdowns below for specific exchange-level coaching."
+        )
         return report
