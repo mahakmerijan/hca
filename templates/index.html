@@ -31,7 +31,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .slide-up{animation:slideUp .5s ease forwards;opacity:0}
 
 /* ─── Mode Nav ─── */
-#mode-nav{position:sticky;top:0;z-index:100;width:100%;background:rgba(11,13,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;gap:0}
+#mode-nav{position:sticky;top:0;z-index:100;width:100%;background:rgba(11,13,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:0}
 .mode-btn{padding:14px 36px;font-size:.92rem;font-weight:700;border:none;background:transparent;color:var(--muted);cursor:pointer;transition:.2s;border-bottom:3px solid transparent;letter-spacing:.2px}
 .mode-btn:hover{color:var(--white)}
 .mode-btn.active{color:var(--accent2);border-bottom-color:var(--accent)}
@@ -123,27 +123,6 @@ header p{color:var(--muted);margin-top:8px;font-size:.92rem;line-height:1.6;max-
 
 /* ─── Closing ─── */
 .closing-box{background:linear-gradient(135deg,var(--accentGlow),rgba(45,212,168,.06));border:1px solid rgba(124,106,246,.22);border-radius:14px;padding:24px 28px;text-align:center;font-size:.96rem;line-height:1.75;color:var(--white)}
-
-/* ─── Off-Moments Card ─── */
-.off-timeline{display:flex;flex-direction:column;gap:7px;margin-top:2px}
-.off-entry{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--card2);border-radius:10px;border-left:3px solid var(--red)}
-.off-entry.body-entry{border-left-color:var(--orange)}
-.off-ts{font-family:monospace;font-size:.8rem;font-weight:700;color:var(--accent2);white-space:nowrap;min-width:110px}
-.off-badge{font-size:.73rem;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
-.off-badge-face{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.28)}
-.off-badge-body{background:rgba(251,146,60,.13);color:var(--orange);border:1px solid rgba(251,146,60,.26)}
-.off-badge-filler{background:rgba(250,204,21,.13);color:var(--yellow);border:1px solid rgba(250,204,21,.28)}
-.off-badge-pace{background:rgba(251,146,60,.15);color:var(--orange);border:1px solid rgba(251,146,60,.32)}
-.off-badge-pause{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.26)}
-.off-entry.speech-entry{border-left-color:var(--yellow)}
-.off-frag{font-size:.78rem;color:#9fa6c0;font-style:italic;margin-top:4px;display:block;padding-left:2px}
-.off-reason-text{font-size:.82rem;color:#b0b5cc}
-.off-group-title{font-size:.9rem;font-weight:700;margin:16px 0 9px;display:flex;align-items:center;gap:8px}
-.speech-issues-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:8px}
-.speech-issue-item{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
-.speech-issue-item .si-label{font-size:.71rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
-.speech-issue-item .si-value{font-size:1rem;font-weight:700}
-.speech-issue-item .si-desc{font-size:.77rem;color:var(--muted);margin-top:4px;line-height:1.5}
 
 /* ─── Score Bars ─── */
 .bar-group{margin-bottom:14px}
@@ -272,14 +251,52 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 .moment-better{background:rgba(45,212,168,.08);border:1px solid rgba(45,212,168,.2);border-radius:8px;padding:10px 12px;font-size:.82rem;color:var(--green);line-height:1.6}
 .moment-scenarios{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
 .moment-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:12px;background:rgba(124,106,246,.15);color:var(--accent2);border:1px solid rgba(124,106,246,.25)}
+/* ─── Login Gate ─── */
+#login-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+.gate-card{background:#13161f;border:1px solid #252a3a;border-radius:20px;padding:40px 36px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.gate-brand{text-align:center;margin-bottom:28px}
+.gate-brand .g-icon{font-size:2.8rem;margin-bottom:8px}
+.gate-brand h1{font-size:1.35rem;font-weight:800;color:#f0f2f8;letter-spacing:-.2px}
+.gate-brand p{color:#7a809a;font-size:.83rem;margin-top:6px}
+#btn-logout{display:none;position:absolute;right:16px;padding:8px 18px;background:transparent;border:1px solid #252a3a;color:#7a809a;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s}
+#btn-logout:hover{border-color:#f87171;color:#f87171}
 </style>
 </head>
 <body>
+
+<!-- ═══ FULL-PAGE LOGIN GATE ═══ -->
+<div id="login-gate">
+  <div class="gate-card">
+    <div class="gate-brand">
+      <div class="g-icon">🧠</div>
+      <h1>AI Behaviour Counsellor</h1>
+      <p>Sign in to access your personal coaching platform</p>
+    </div>
+    <h3 id="gate-title" style="color:#f0f2f8;font-size:1rem;font-weight:700;margin-bottom:18px">Create your account</h3>
+    <div id="gate-fields">
+      <div class="form-group"><label>Email</label><input type="email" id="gate-email" placeholder="you@example.com"></div>
+      <div class="form-group" id="gate-name-wrap"><label>Name</label><input type="text" id="gate-name" placeholder="Your name"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="gate-password" placeholder="••••••••"></div>
+      <button class="btn-primary" id="gate-main-btn" style="margin-top:4px" onclick="gateRegister()">Register</button>
+      <p style="text-align:center;margin-top:14px;font-size:.82rem;color:#7a809a">
+        Already have an account? <a href="#" id="gate-switch-link" onclick="gateSwitchToLogin();return false;" style="color:#a599ff;text-decoration:none">Log In</a>
+      </p>
+    </div>
+    <div id="gate-success" style="display:none;text-align:center;padding:16px 0">
+      <div style="font-size:2.5rem;margin-bottom:14px">🎉</div>
+      <p style="color:#2dd4a8;font-size:1.05rem;font-weight:700;margin-bottom:8px">You are registered successfully!</p>
+      <p style="color:#7a809a;font-size:.85rem;margin-bottom:22px">Use your credentials below to log in.</p>
+      <button class="btn-primary" style="margin-top:0" onclick="gateShowLoginAfterRegister()">Log In</button>
+    </div>
+    <div class="auth-msg" id="gate-msg"></div>
+  </div>
+</div>
 
 <!-- ═══ STICKY MODE SWITCHER ═══ -->
 <nav id="mode-nav">
   <button class="mode-btn active" id="btn-video" onclick="switchMode('video')">🎦 Video Analysis</button>
   <button class="mode-btn" id="btn-twin" onclick="switchMode('twin')">🤖 Digital Twin</button>
+  <button id="btn-logout" onclick="logout()">Log Out</button>
 </nav>
 
 <div id="mode-video">
@@ -290,11 +307,12 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 
 <!-- ═══ UPLOAD ═══ -->
 <div id="upload-section">
-  <div class="drop-zone" id="drop-zone">
+  <div class="drop-zone" id="drop-zone" style="position:relative;overflow:hidden">
     <div class="icon">🎦</div>
     <p>Drag &amp; drop your video here<br>or <strong>click to browse</strong></p>
     <p style="margin-top:10px;font-size:.76rem;color:var(--muted)">MP4 · AVI · MOV · MKV · WEBM — up to 500 MB</p>
-    <input type="file" id="file-input" accept="video/*">
+    <input type="file" id="file-input" accept="video/*"
+      style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2">
   </div>
   <div id="file-name"></div>
   <button id="analyze-btn" disabled>🔍 Start Counselling Session</button>
@@ -358,7 +376,7 @@ const dropZone=document.getElementById('drop-zone'),fileInput=document.getElemen
       progressText=document.getElementById('progress-text'),progressSub=document.getElementById('progress-sub'),
       resultsSec=document.getElementById('results-section'),
       ctxSec=document.getElementById('context-section');
-let selectedFile=null, currentJobId=null;
+let selectedFile=null, currentJobId=null, _lastResult=null;
 // Per-type pending file uploads (stored for after job init)
 const pendingCtxFiles={};
 
@@ -372,7 +390,6 @@ function handleCtxFile(type,inp){
 }
 
 /* ─── Video pick ─── */
-dropZone.addEventListener('click',()=>fileInput.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over')});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');if(e.dataTransfer.files.length)pickFile(e.dataTransfer.files[0])});
@@ -436,6 +453,7 @@ function showErr(m){progressSec.classList.add('hidden');uploadSec.classList.remo
 
 /* ═══════════════════════ RENDER ═══════════════════════ */
 function render(R){
+  _lastResult = R;
   progressSec.classList.add('hidden');resultsSec.classList.remove('hidden');resultsSec.innerHTML='';
   const C=R.counselling||{};const pred=R.final_predictions||{};
   const tla=C.three_layer_analysis||{};
@@ -594,77 +612,6 @@ function render(R){
   barHTML+='</div>';
   resultsSec.insertAdjacentHTML('beforeend',barHTML);
 
-  /* 6.5 ─── Raw Off-Moments: Facial + Body + Speech ─── */
-  const _fps=(R.video_info||{}).fps||30;
-  function frameToTs(idx){const s=Math.round(idx/_fps),m=Math.floor(s/60),sec=s%60;return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
-  function mergeOff(frames,gapSecs=2){
-    if(!frames||!frames.length)return[];
-    const sorted=[...frames].sort((a,b)=>a.frame_idx-b.frame_idx);
-    const gap=gapSecs*_fps,out=[];let cur={...sorted[0],end_idx:sorted[0].frame_idx};
-    for(let i=1;i<sorted.length;i++){const f=sorted[i];if(f.reason===cur.reason&&f.frame_idx-cur.end_idx<=gap){cur.end_idx=f.frame_idx;}else{out.push(cur);cur={...f,end_idx:f.frame_idx};}}
-    out.push(cur);return out;
-  }
-  const facialOff=mergeOff((R.facial_analysis||{}).off_segments||[]);
-  const bodyOff=mergeOff((R.body_language_analysis||{}).off_frames||[]);
-  const _vf=(R.voice_speech_analysis||{}).audio_features||{};
-  const _sc=_vf.speech_content||{},_sr=_vf.speaking_rate||{},_pa=_vf.pauses||{};
-  const dialogueIssues=(R.voice_speech_analysis||{}).dialogue_issues||[];
-  const hasSpeechIssues=dialogueIssues.length>0||(_sc.filler_word_ratio||0)>0.05||(_sr.pace_label&&_sr.pace_label!=='ideal'&&_sr.pace_label!=='');
-  if(facialOff.length||bodyOff.length||hasSpeechIssues){
-    let offHTML='<div class="card slide-up"><h2>🚨 Where You Looked &amp; Sounded Off</h2>';
-    offHTML+='<p style="color:var(--muted);font-size:.83rem;margin:-8px 0 18px">Exact video timestamps where your facial expressions, posture or speech were misaligned — so you know precisely what to work on.</p>';
-    if(facialOff.length){
-      offHTML+='<div class="off-group-title"><span style="color:var(--red)">😬 Facial Expression Issues</span><span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+facialOff.length+' moment'+(facialOff.length!==1?'s':'')+')</span></div>';
-      offHTML+='<div class="off-timeline">';
-      facialOff.forEach(seg=>{
-        const ts=frameToTs(seg.frame_idx),tsEnd=seg.end_idx!==seg.frame_idx?' – '+frameToTs(seg.end_idx):'';
-        offHTML+=`<div class="off-entry"><span class="off-ts">⏱ ${esc(ts)}${esc(tsEnd)}</span>${seg.dominant_emotion?`<span class="off-badge off-badge-face">${esc(seg.dominant_emotion)}</span>`:''}<span class="off-reason-text">${esc(seg.reason||'')}</span></div>`;
-      });
-      offHTML+='</div>';
-    }
-    if(bodyOff.length){
-      offHTML+='<div class="off-group-title" style="margin-top:'+(facialOff.length?'20px':'4px')+'"><span style="color:var(--orange)">🧍 Body Language Issues</span><span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+bodyOff.length+' moment'+(bodyOff.length!==1?'s':'')+')</span></div>';
-      offHTML+='<div class="off-timeline">';
-      bodyOff.forEach(fr=>{
-        const ts=frameToTs(fr.frame_idx),tsEnd=fr.end_idx!==fr.frame_idx?' – '+frameToTs(fr.end_idx):'';
-        const detail=fr.confidence_score!=null?' · confidence '+fr.confidence_score:fr.openness!=null?' · openness '+fr.openness:fr.shoulder_alignment!=null?' · alignment '+fr.shoulder_alignment:'';
-        offHTML+=`<div class="off-entry body-entry"><span class="off-ts">⏱ ${esc(ts)}${esc(tsEnd)}</span><span class="off-badge off-badge-body">${esc(fr.reason||'')}${esc(detail)}</span></div>`;
-      });
-      offHTML+='</div>';
-    }
-    if(hasSpeechIssues){
-      const speechCount=dialogueIssues.length;
-      offHTML+='<div class="off-group-title" style="margin-top:20px"><span style="color:var(--yellow)">🎤 Dialogue &amp; Speech Issues</span>'+(speechCount?'<span style="font-size:.73rem;color:var(--muted);font-weight:400">&nbsp;('+speechCount+' moment'+(speechCount!==1?'s':'')+')</span>':'')+'</div>';
-      if(dialogueIssues.length){
-        offHTML+='<div class="off-timeline">';
-        dialogueIssues.forEach(di=>{
-          const tsEnd=di.end_timestamp&&di.end_timestamp!==di.timestamp?' – '+esc(di.end_timestamp):'';
-          const badgeClass=di.issue_type==='filler'?'off-badge-filler':di.issue_type==='pace'?'off-badge-pace':'off-badge-pause';
-          const icon=di.issue_type==='filler'?'💬':di.issue_type==='pace'?'⚡':'⏸';
-          let entryHTML=`<div class="off-entry speech-entry"><span class="off-ts">⏱ ${esc(di.timestamp)}${tsEnd}</span><span class="off-badge ${badgeClass}">${icon} ${esc(di.reason||'')}</span>`;
-          if(di.text_fragment) entryHTML+=`<span class="off-frag">${esc(di.text_fragment)}</span>`;
-          entryHTML+='</div>';
-          offHTML+=entryHTML;
-        });
-        offHTML+='</div>';
-      } else {
-        /* fallback aggregate if no per-segment data */
-        offHTML+='<div class="speech-issues-grid">';
-        if((_sc.filler_word_count||0)>0){
-          const bc=(_sc.filler_word_ratio||0)>0.15?'var(--red)':(_sc.filler_word_ratio||0)>0.05?'var(--yellow)':'var(--muted)';
-          offHTML+=`<div class="speech-issue-item"><div class="si-label">Filler Words</div><div class="si-value" style="color:${bc}">${_sc.filler_word_count} used</div><div class="si-desc">${((_sc.filler_word_ratio||0)*100).toFixed(1)}% of speech — aim for &lt;5%</div></div>`;
-        }
-        if(_sr.pace_label&&_sr.pace_label!=='ideal'&&_sr.pace_label!==''){
-          const pc=_sr.pace_label.startsWith('very')?'var(--red)':'var(--yellow)';
-          offHTML+=`<div class="speech-issue-item"><div class="si-label">Speaking Pace</div><div class="si-value" style="color:${pc}">${esc(_sr.pace_label.replace(/_/g,' '))}</div><div class="si-desc">${(_sr.estimated_syllables_per_sec||0).toFixed(1)} syllables/sec — ideal: 3–5</div></div>`;
-        }
-        offHTML+='</div>';
-      }
-    }
-    offHTML+='</div>';
-    resultsSec.insertAdjacentHTML('beforeend',offHTML);
-  }
-
   /* 7 ─── Improvement Plan (with training loops) ─── */
   const plan=C.improvement_plan||[];
   if(plan.length){
@@ -725,9 +672,180 @@ function render(R){
 }
 
 function exportToPDF(){
-  // Native browser print — @media print CSS handles light-theme overrides.
-  // In the print dialog, select "Save as PDF" as destination.
-  window.print();
+  if(!_lastResult || !window.jspdf){window.print();return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=doc.internal.pageSize.getWidth();
+  const H=doc.internal.pageSize.getHeight();
+  const ml=14, mr=14, usable=W-ml-mr;
+  let y=20;
+  const C=_lastResult.counselling||{};
+  const pred=_lastResult.final_predictions||{};
+  const tla=C.three_layer_analysis||{};
+
+  function np(){doc.addPage();y=20;}
+  function cy(n){if(y+n>H-14)np();}
+  function clean(s){return s?String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&ldquo;/g,'"').replace(/&rdquo;/g,'"').trim():'';}
+
+  function hdr1(t){cy(14);doc.setFontSize(16);doc.setFont('helvetica','bold');doc.setTextColor(50,40,150);doc.text(t,ml,y);y+=9;}
+  function hdr2(t,col){col=col||[60,50,160];cy(10);doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(...col);doc.text(t,ml,y);y+=7;}
+  function hdr3(t,col){col=col||[80,70,180];cy(7);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(...col);doc.text(t,ml+2,y);y+=5;}
+  function para(t,indent){
+    if(!t)return;indent=indent||0;
+    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(25,25,45);
+    doc.splitTextToSize(clean(t),usable-indent).forEach(l=>{cy(5);doc.text(l,ml+indent,y);y+=4.4;});
+  }
+  function bullets(arr,indent,col){
+    (arr||[]).forEach(item=>{
+      col=col||[25,25,45];
+      doc.setFontSize(8.2);doc.setFont('helvetica','normal');doc.setTextColor(...col);
+      doc.splitTextToSize('• '+clean(item),usable-indent-2).forEach((l,i)=>{cy(5);doc.text(l,ml+indent+(i>0?4:0),y);y+=4.2;});
+    });
+  }
+  function rule(){cy(4);doc.setDrawColor(170,170,210);doc.setLineWidth(0.3);doc.line(ml,y,W-mr,y);y+=5;}
+  function box(label,content,bg,border){
+    const lines=doc.splitTextToSize(clean(content),usable-8);
+    const bh=lines.length*4.4+12;
+    cy(bh);
+    doc.setFillColor(...bg);doc.setDrawColor(...border);doc.setLineWidth(0.5);
+    doc.roundedRect(ml,y,usable,bh,3,3,'FD');
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(...border);
+    doc.text(label,ml+4,y+5.5);
+    doc.setFont('helvetica','normal');doc.setTextColor(20,20,40);
+    lines.forEach((l,i)=>doc.text(l,ml+4,y+11+i*4.4));
+    y+=bh+4;
+  }
+  function scorebar(label,score){
+    cy(9);
+    const col=score>=70?[40,170,110]:score>=50?[200,155,40]:[210,70,70];
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(25,25,45);
+    doc.text(clean(label),ml,y+3);
+    doc.setTextColor(...col);
+    doc.text(String(score.toFixed(1)),W-mr-8,y+3);
+    doc.setFillColor(195,195,220);doc.roundedRect(ml+62,y,usable-70,4,1,1,'F');
+    doc.setFillColor(...col);doc.roundedRect(ml+62,y,(usable-70)*(Math.min(score,100)/100),4,1,1,'F');
+    y+=8;
+  }
+
+  /* ── COVER PAGE ── */
+  doc.setFillColor(22,16,70);doc.rect(0,0,W,H,'F');
+  doc.setFontSize(26);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
+  doc.text('AI Behaviour',W/2,80,{align:'center'});
+  doc.text('Coaching Report',W/2,97,{align:'center'});
+  doc.setFontSize(11);doc.setFont('helvetica','normal');doc.setTextColor(170,160,255);
+  doc.text('Powered by Gemini AI — personalised just for you',W/2,115,{align:'center'});
+  doc.setFontSize(9);doc.setTextColor(110,110,180);
+  doc.text(new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),W/2,130,{align:'center'});
+  doc.addPage();y=20;
+
+  /* ── 1. OVERALL SUMMARY ── */
+  hdr1('Coach\'s Report Summary');
+  if(C.overall_summary)box('Overall Summary',C.overall_summary,[238,236,255],[80,60,200]);
+  if(C.personality_snapshot){y+=2;box('Personality Snapshot',C.personality_snapshot,[228,252,242],[25,130,90]);}
+  if(C.coach_verdict){y+=2;box('\u26a1 Coach\'s #1 Priority For You',C.coach_verdict,[255,238,238],[170,40,40]);}
+  rule();
+
+  /* ── 2. 3-LAYER ANALYSIS ── */
+  hdr1('3-Layer Communication Analysis');
+  [{key:'verbal_intelligence',title:'Verbal Intelligence'},{key:'non_verbal_intelligence',title:'Non-Verbal Intelligence'},{key:'behavioral_signals',title:'Behavioral Signals'}].forEach(l=>{
+    const d=tla[l.key]||{};const score=d.score||0;
+    const col=score>=70?[25,150,90]:score>=50?[170,120,25]:[170,40,40];
+    cy(16);doc.setFontSize(10.5);doc.setFont('helvetica','bold');doc.setTextColor(...col);
+    doc.text(l.title+' \u2014 '+score+'/100',ml,y);y+=6;
+    para(d.summary);
+    if((d.what_worked||[]).length){hdr3('\u2713 What Worked',[20,115,65]);bullets(d.what_worked,4,[20,100,60]);}
+    if((d.what_didnt||[]).length){hdr3('\u2717 What Didn\'t',[155,35,35]);bullets(d.what_didnt,4,[140,25,25]);}
+    if((d.improvements||[]).length){hdr3('\u2192 Improvements',[60,45,160]);bullets(d.improvements,4,[50,35,140]);}
+    y+=4;
+  });
+  rule();
+
+  /* ── 3. STRENGTHS & WEAKNESSES ── */
+  hdr1('Strengths & Weaknesses');
+  const strengths=C.strengths||[];const weaknesses=C.weaknesses||[];
+  if(strengths.length){
+    hdr2('\u2705 Strengths',[20,115,65]);
+    strengths.forEach(s=>{cy(10);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(20,95,55);doc.text('\ud83d\udcaa '+clean(s.title||''),ml+2,y);y+=5;para(s.detail,4);y+=1;});
+  }
+  if(weaknesses.length){
+    y+=2;hdr2('\u26a0\ufe0f Areas of Weakness',[155,40,40]);
+    weaknesses.forEach(w=>{cy(10);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(135,25,25);doc.text('\ud83d\udd0d '+clean(w.title||''),ml+2,y);y+=5;para(w.detail,4);y+=1;});
+  }
+  rule();
+
+  /* ── 4. SCENARIO PROBABILITIES ── */
+  hdr1('Success Probabilities');
+  const cs=C.scenarios||{};
+  [{key:'closing_deal',label:'Closing a Deal'},{key:'getting_promoted',label:'Getting Promoted'},{key:'delivering_presentation',label:'Delivering a Presentation'},{key:'going_on_date',label:'Going on a Date'},{key:'job_interview',label:'Job Interview'},{key:'business_deal',label:'Business Deal'},{key:'date',label:'Date'}].forEach(s=>{
+    const d=cs[s.key];if(!d)return;
+    const prob=d.probability!=null?d.probability:50;
+    const col=prob>=70?[25,150,90]:prob>=50?[170,120,25]:[170,40,40];
+    cy(14);doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(...col);
+    doc.text(s.label+': '+Math.round(prob)+'%',ml,y);y+=5;
+    if(d.verdict)para(d.verdict,4);
+    if(d.what_worked){hdr3('\u2713 What Worked',[20,115,65]);para(d.what_worked,4);}
+    if(d.what_didnt){hdr3('\u2717 What Didn\'t',[155,35,35]);para(d.what_didnt,4);}
+    if(d.coaching_advice){hdr3('\u2192 Coaching Advice',[60,45,160]);para(d.coaching_advice,4);}
+    if(d.detailed_advice){hdr3('\u2192 Detailed Advice',[60,45,160]);para(d.detailed_advice,4);}
+    y+=3;
+  });
+  rule();
+
+  /* ── 5. SCORE BREAKDOWN ── */
+  hdr1('Detailed Score Breakdown');
+  const comps=[{key:'facial_expression',label:'Facial Expression'},{key:'body_language',label:'Body Language'},{key:'voice_tone',label:'Voice Tone'},{key:'speech_clarity',label:'Speech Clarity'},{key:'confidence',label:'Confidence'}];
+  [{key:'job_interview',label:'Job Interview'},{key:'business_deal',label:'Business Deal'},{key:'date',label:'Date'}].forEach(s=>{
+    const bd=(pred[s.key]||{}).breakdown||{};
+    if(!comps.some(c=>bd[c.key]))return;
+    cy(10);doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(55,45,140);doc.text(s.label,ml,y);y+=5;
+    comps.forEach(c=>scorebar(c.label,bd[c.key]||0));
+    y+=3;
+  });
+  rule();
+
+  /* ── 6. IMPROVEMENT PLAN ── */
+  const plan=C.improvement_plan||[];
+  if(plan.length){
+    hdr1('Personal Improvement Plan');
+    plan.forEach(p=>{
+      cy(18);
+      const pc=p.priority==='high'?[170,35,35]:p.priority==='low'?[25,130,75]:[170,120,25];
+      doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(...pc);
+      doc.text(clean(p.area||'')+' ('+clean(p.priority||'medium')+' priority)',ml,y);y+=5;
+      if(p.current_state){hdr3('\ud83d\udccd Where you are now',[155,35,35]);para(p.current_state,4);}
+      if(p.target_state){hdr3('\ud83c\udfaf Where you should be',[25,115,65]);para(p.target_state,4);}
+      if((p.action_steps||[]).length){hdr3('Action Steps',[55,45,150]);bullets(p.action_steps,4);}
+      if(p.training_loop){hdr3('\ud83d\udd01 Training Loop',[35,25,145]);para(p.training_loop,4);}
+      y+=4;
+    });
+    rule();
+  }
+
+  /* ── 7. MOMENT ANALYSIS ── */
+  const moments=C.moment_analysis||[];
+  if(moments.length){
+    hdr1('Key Moments: Where Expressions Were Off');
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,130);
+    doc.splitTextToSize('Specific timestamps where your facial expression or body language was misaligned — and exactly how to fix each one.',usable).forEach(l=>{doc.text(l,ml,y);y+=4.2;});
+    y+=2;
+    moments.forEach(m=>{
+      cy(20);
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(155,35,35);
+      doc.text('\u23f1 '+(m.timestamp||'?')+'   '+clean(m.emotion_detected||''),ml,y);y+=5;
+      if(m.what_was_said)para('"'+clean(m.what_was_said)+'"',4);
+      if(m.why_its_off){hdr3('Why it\'s off:',[155,35,35]);para(m.why_its_off,4);}
+      if(m.better_delivery){hdr3('How to deliver better:',[25,115,65]);para(m.better_delivery,4);}
+      y+=3;
+    });
+    rule();
+  }
+
+  /* ── 8. CLOSING ── */
+  if(C.closing_message){
+    cy(20);box('\ud83d\udcac Closing Message',C.closing_message,[238,236,255],[80,60,200]);
+  }
+
+  doc.save('ai-coaching-report.pdf');
 }
 
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';}
@@ -758,7 +876,7 @@ function resetUI(){
 .twin-header{background:linear-gradient(135deg,rgba(124,106,246,.14),rgba(45,212,168,.07));border:1px solid rgba(124,106,246,.28);border-radius:16px;padding:32px;text-align:center;margin-bottom:28px}
 .twin-header h2{font-size:1.5rem;font-weight:800;color:#f0f2f8;margin-bottom:8px}
 .twin-header p{color:#7c6af6;font-size:.93rem}
-.twin-tabs{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+.twin-tabs{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;justify-content:center}
 .twin-tab{padding:10px 22px;border-radius:10px;border:1px solid #252a3a;background:#13161f;color:#7a809a;cursor:pointer;font-size:.88rem;font-weight:600;transition:.2s}
 .twin-tab.active,.twin-tab:hover{background:#7c6af6;color:#fff;border-color:#7c6af6}
 .twin-panel{display:none}.twin-panel.active{display:block}
@@ -855,35 +973,38 @@ function resetUI(){
 <div id="twin-section">
   <div class="twin-header">
     <h2>🤖 Digital Twin Simulator</h2>
-    <p>Answer a questionnaire → generate your AI twin → run 10 social simulations → get precision coaching</p>
   </div>
 
   <div class="twin-tabs">
-    <button class="twin-tab active" onclick="showTwinTab('tab-auth')">🔐 Account</button>
-    <button class="twin-tab" onclick="showTwinTab('tab-form')">📋 Questionnaire</button>
+    <button class="twin-tab active" onclick="showTwinTab('tab-form')">📋 Questionnaire</button>
     <button class="twin-tab" onclick="showTwinTab('tab-video')">🎦 Upload Your Video</button>
     <button class="twin-tab" onclick="showTwinTab('tab-sim')">⚡ Run Simulation</button>
     <button class="twin-tab" onclick="showTwinTab('tab-results')">📊 Results & Coaching</button>
   </div>
 
-  <!-- ── AUTH PANEL ── -->
-  <div id="tab-auth" class="twin-panel active">
-    <div class="auth-card">
-      <h3 style="color:#f0f2f8;font-size:1.05rem;margin-bottom:20px">Create account or log in</h3>
-      <div class="form-group"><label>Email</label><input type="email" id="auth-email" placeholder="you@example.com"></div>
-      <div class="form-group" id="auth-name-wrap"><label>Name</label><input type="text" id="auth-name" placeholder="Your name"></div>
-      <div class="form-group"><label>Password</label><input type="password" id="auth-password" placeholder="••••••••"></div>
-      <div style="display:flex;gap:10px;margin-top:4px">
-        <button class="btn-primary" style="margin-top:0" onclick="doRegister()">Register</button>
-        <button class="btn-outline" onclick="doLogin()">Log In</button>
-      </div>
-      <div class="auth-msg" id="auth-msg"></div>
-      <div class="twin-token" id="twin-token-display"></div>
-    </div>
-  </div>
-
   <!-- ── QUESTIONNAIRE PANEL ── -->
-  <div id="tab-form" class="twin-panel">
+  <div id="tab-form" class="twin-panel active">
+
+    <!-- Scenario-specific prep card -->
+    <div id="scenario-prep-section" style="background:#13161f;border:1px solid #252a3a;border-radius:14px;padding:24px 26px;margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-size:1.4rem">🎯</span>
+        <div>
+          <h3 style="color:#f0f2f8;font-size:1rem;font-weight:700;margin:0">Preparing for Something Specific?</h3>
+          <p style="color:#7a809a;font-size:.82rem;margin:3px 0 0">Describe the exact situation — we'll generate 20+ targeted questions just for you.</p>
+        </div>
+      </div>
+      <textarea id="scenario-desc-input" rows="3"
+        placeholder="e.g. I have a Series A pitch with Sequoia next week. I've never pitched a top-tier VC before and my startup is pre-revenue…"
+        style="width:100%;padding:11px 14px;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;font-family:inherit;resize:vertical;outline:none;transition:.2s;box-sizing:border-box"
+        onfocus="this.style.borderColor='#7c6af6'" onblur="this.style.borderColor='#333a50'"></textarea>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn-primary" style="width:auto;margin-top:0" onclick="generateScenarioQuestions()">✨ Generate My Questions</button>
+        <span id="scenario-gen-status" style="font-size:.82rem;color:#7a809a"></span>
+      </div>
+      <div id="scenario-q-container"></div>
+    </div>
+
     <div id="twin-q-container">
       <p style="color:#7a809a;text-align:center;padding:40px">Log in first to unlock the questionnaire.</p>
     </div>
@@ -897,28 +1018,23 @@ function resetUI(){
   <!-- ── UPLOAD VIDEO PANEL ── -->
   <div id="tab-video" class="twin-panel">
     <div style="background:#13161f;border:1px solid #2a3045;border-radius:14px;padding:28px 30px">
-      <h3 style="color:#f0f2f8;font-size:1.05rem;font-weight:700;margin-bottom:8px">🎦 Upload Your Video(s)</h3>
+      <h3 style="color:#f0f2f8;font-size:1.05rem;font-weight:700;margin-bottom:8px">🎦 Upload Your Video</h3>
       <p style="color:#7a809a;font-size:.85rem;line-height:1.75;margin-bottom:20px">
-        Upload one or more videos of yourself speaking naturally.<br>
-        We will extract <strong style="color:#a599ff">posture · facial expressions · body language · spine angle · confidence indicators</strong> using <em style="color:#2dd4a8">OpenPose + MediaPipe</em>.<br>
-        <span style="color:#f59e0b">✦ Multiple videos are averaged to give a more accurate picture of your communication style.</span>
+        Upload a video of yourself speaking naturally — in an interview, pitch, or conversation setting.<br>
+        We will extract <strong style="color:#a599ff">posture · facial expressions · body language · spine angle · eye contact · hand movement frequency · confidence indicators</strong> using <em style="color:#2dd4a8">OpenPose + MediaPipe</em>.<br>
+        This becomes the <strong style="color:#a599ff">Embodied Model</strong> layer of your Digital Twin, cross-referenced with your self-assessment answers.
       </p>
-
-      <!-- Multi-video upload list -->
-      <div id="twin-video-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
-
-      <!-- Drop zone -->
-      <div id="twin-video-drop" onclick="document.getElementById('twin-video-input').click()"
-        style="border:2px dashed #2a3045;border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:.25s"
-        onmouseover="this.style.borderColor='#7c6af6';this.style.background='rgba(124,106,246,.05)'"
-        onmouseout="this.style.borderColor='#2a3045';this.style.background='transparent'">
-        <div style="font-size:2.8rem;margin-bottom:10px">📹</div>
-        <p style="color:#d1d5e0;font-size:.95rem;font-weight:600">Click to add video(s)</p>
-        <p style="color:#7a809a;font-size:.82rem;margin-top:6px">You can add multiple videos — they will all be analysed and merged</p>
-        <p style="color:#44506a;font-size:.75rem;margin-top:8px">MP4 · MOV · AVI · WEBM — up to 500 MB each</p>
+      <!-- Drop zone — drag/drop or click Browse button -->
+      <div id="twin-video-drop"
+        style="border:2px dashed #2a3045;border-radius:12px;padding:40px 24px;text-align:center;transition:.25s">
+        <div style="font-size:3rem;margin-bottom:10px">📹</div>
+        <p style="color:#d1d5e0;font-size:.95rem;font-weight:600;margin-bottom:6px">Drag &amp; drop your video(s) here</p>
+        <p style="color:#44506a;font-size:.75rem;margin-bottom:18px">MP4 · MOV · AVI · WEBM — up to 500 MB · select multiple for better accuracy</p>
+        <button type="button" class="btn-primary" style="width:auto;margin-top:0;padding:11px 28px"
+          onclick="document.getElementById('twin-video-input').click()">📂 Browse Files</button>
       </div>
-      <input type="file" id="twin-video-input" accept="video/*" multiple style="display:none" onchange="handleTwinVideos(this)">
-
+      <input type="file" id="twin-video-input" accept="video/*" multiple style="display:none" onchange="handleTwinVideo(this)">
+      <div id="twin-video-name" style="margin-top:12px;font-size:.84rem;color:#2dd4a8;min-height:20px"></div>
       <div id="twin-video-progress" style="display:none;margin-top:14px">
         <div style="background:#0b0d13;border-radius:50px;height:8px;overflow:hidden">
           <div id="twin-video-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c6af6,#2dd4a8);border-radius:50px;transition:width .4s"></div>
@@ -939,48 +1055,26 @@ function resetUI(){
   <div id="tab-sim" class="twin-panel">
     <div class="card" style="background:#13161f">
       <h2>⚡ Simulation Control</h2>
-      <p style="color:#7a809a;font-size:.88rem;margin-bottom:20px">Your twin will play through social scenarios — job interviews, investor pitches, dating conversations.</p>
       <div id="sim-twin-info" style="margin-bottom:18px"></div>
 
-      <!-- ── Simulation mode selector ── -->
-      <div style="background:#0b0d13;border:1px solid #252a3a;border-radius:12px;padding:20px;margin-bottom:20px">
-        <div style="font-size:.9rem;font-weight:700;color:#a599ff;margin-bottom:14px">🎯 Choose Simulation Mode</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:10px;border:1px solid #252a3a;transition:.2s" id="mode-lbl-predefined">
-            <input type="radio" name="sim-mode" value="predefined" checked onchange="updateSimMode()" style="margin-top:3px;accent-color:#7c6af6">
-            <div>
-              <div style="font-size:.88rem;font-weight:700;color:#d1d5e0">Standard 10 Scenarios</div>
-              <div style="font-size:.79rem;color:#7a809a;margin-top:3px">3 job interviews · 3 investor pitches · 4 dating conversations</div>
-            </div>
-          </label>
-          <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:10px;border:1px solid #252a3a;transition:.2s" id="mode-lbl-custom">
-            <input type="radio" name="sim-mode" value="custom" onchange="updateSimMode()" style="margin-top:3px;accent-color:#7c6af6">
-            <div>
-              <div style="font-size:.88rem;font-weight:700;color:#d1d5e0">Custom Persona Only</div>
-              <div style="font-size:.79rem;color:#7a809a;margin-top:3px">50-turn conversation with the person from your questionnaire scenario</div>
-            </div>
-          </label>
-          <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:12px 14px;border-radius:10px;border:1px solid #252a3a;transition:.2s" id="mode-lbl-both">
-            <input type="radio" name="sim-mode" value="both" onchange="updateSimMode()" style="margin-top:3px;accent-color:#7c6af6">
-            <div>
-              <div style="font-size:.88rem;font-weight:700;color:#d1d5e0">Both — Standard + Custom</div>
-              <div style="font-size:.79rem;color:#7a809a;margin-top:3px">Run all 10 standard scenarios AND your custom persona simulation</div>
-            </div>
-          </label>
-        </div>
+      <!-- Mode A: targeted simulation with the person from the questionnaire -->
+      <div style="background:#0b0d13;border:1px solid #2a3045;border-radius:12px;padding:20px 22px;margin-bottom:16px">
+        <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#a599ff;margin-bottom:8px">🎯 Targeted Simulation</div>
+        <p style="color:#d1d5e0;font-size:.88rem;line-height:1.6;margin-bottom:14px">
+          Your Digital Twin will have a real conversation with the Digital Twin of the <strong style="color:#a599ff">specific person you described</strong> in the questionnaire — built from your scenario description, goals, and their known communication style.
+        </p>
+        <div id="sim-scenario-preview" style="font-size:.82rem;color:#7a809a;font-style:italic;margin-bottom:14px;min-height:18px"></div>
+        <button class="btn-primary" style="max-width:320px;margin-top:0" onclick="startTargetedSimulation()">▶ Simulate with That Person</button>
+        <div class="auth-msg" id="targeted-sim-msg" style="margin-top:10px"></div>
       </div>
 
-      <!-- Custom persona status (sourced from questionnaire scenario prep) -->
-      <div id="sim-custom-persona-wrap" style="display:none;background:#0b0d1a;border:1px solid #7c6af655;border-radius:12px;padding:14px 18px;margin-bottom:20px">
-        <div id="sim-cp-status-info" style="font-size:.84rem;color:#a599ff">⏳ Building custom persona from your questionnaire scenario…</div>
-        <div id="sim-cp-ready" style="display:none">
-          <div style="font-size:.82rem;font-weight:700;color:#2dd4a8;margin-bottom:4px">✓ Custom Persona Ready</div>
-          <div id="sim-cp-summary" style="font-size:.83rem;color:#a8f0d8;line-height:1.6"></div>
-        </div>
-        <div id="sim-cp-error" style="display:none;font-size:.82rem;color:#f87171"></div>
+      <!-- Mode B: generic 10-scenario benchmark -->
+      <div style="background:#0b0d13;border:1px solid #2a3045;border-radius:12px;padding:20px 22px">
+        <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#7a809a;margin-bottom:8px">📊 Benchmark (10 Scenarios)</div>
+        <p style="color:#7a809a;font-size:.85rem;margin-bottom:14px">Run your twin through 10 generic social scenarios — 3 job interviews, 3 investor pitches, 4 dating conversations — to get an overall behavioural score.</p>
+        <button class="btn-outline" onclick="startSimulation()">▶ Start 10 Simulations</button>
+        <div class="auth-msg" id="sim-msg" style="margin-top:10px"></div>
       </div>
-
-      <button class="btn-primary" style="max-width:280px" onclick="startSimulation()" id="sim-start-btn">▶ Start Simulation</button>
 
       <div id="sim-progress-wrap" style="display:none;margin-top:24px">
         <div style="display:flex;justify-content:space-between;font-size:.83rem;color:#7a809a;margin-bottom:4px">
@@ -990,7 +1084,6 @@ function resetUI(){
         <div id="sim-status-txt" style="color:#a599ff;font-size:.85rem;font-weight:600;margin-top:8px">Initialising…</div>
         <div class="stats-grid" id="sim-live-stats"></div>
       </div>
-      <div class="auth-msg" id="sim-msg"></div>
     </div>
 
     <!-- ── SCENARIO BROWSER (all 10 conversations) ── -->
@@ -1052,11 +1145,10 @@ function showTwinTab(id, evt){
     clicked.classList.add('active');
   } else {
     const tabMap = {
-      'tab-auth': 0,
-      'tab-form': 1,
-      'tab-video': 2,
-      'tab-sim': 3,
-      'tab-results': 4,
+      'tab-form': 0,
+      'tab-video': 1,
+      'tab-sim': 2,
+      'tab-results': 3,
     };
     const idx = tabMap[id];
     if(idx !== undefined){
@@ -1069,6 +1161,32 @@ function showTwinTab(id, evt){
 }
 
 // ── Auth ───────────────────────────────────────────────────────
+function switchToLogin(){
+  document.getElementById('auth-title').textContent = 'Log in to your account';
+  document.getElementById('auth-name-wrap').style.display = 'none';
+  document.getElementById('auth-main-btn').textContent = 'Log In';
+  document.getElementById('auth-main-btn').onclick = doLogin;
+  const link = document.getElementById('auth-switch-link');
+  link.textContent = 'Register instead';
+  link.onclick = function(){ switchToRegister(); return false; };
+  document.getElementById('auth-fields').style.display = 'block';
+  document.getElementById('auth-success').style.display = 'none';
+  setAuthMsg('','');
+}
+function switchToRegister(){
+  document.getElementById('auth-title').textContent = 'Create your account';
+  document.getElementById('auth-name-wrap').style.display = 'block';
+  document.getElementById('auth-main-btn').textContent = 'Register';
+  document.getElementById('auth-main-btn').onclick = doRegister;
+  const link = document.getElementById('auth-switch-link');
+  link.textContent = 'Log In';
+  link.onclick = function(){ switchToLogin(); return false; };
+  setAuthMsg('','');
+}
+function showLoginAfterRegister(){
+  document.getElementById('auth-password').value = '';
+  switchToLogin();
+}
 async function doRegister(){
   const email=document.getElementById('auth-email').value.trim();
   const name=document.getElementById('auth-name').value.trim();
@@ -1077,8 +1195,9 @@ async function doRegister(){
   const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name,password:pw})});
   const d=await r.json();
   if(d.error){setAuthMsg(d.error,'err');return;}
-  saveAuthSession(d);
-  setAuthMsg('✓ Account created! You can now fill the questionnaire.','ok');
+  setAuthMsg('','');
+  document.getElementById('auth-fields').style.display = 'none';
+  document.getElementById('auth-success').style.display = 'block';
 }
 async function doLogin(){
   const email=document.getElementById('auth-email').value.trim();
@@ -1094,21 +1213,6 @@ function saveAuthSession(d){
   twinAuthToken=d.token;twinUserId=d.user_id;
   localStorage.setItem('twinToken',d.token);
   localStorage.setItem('twinUserId',d.user_id);
-  document.getElementById('twin-token-display').style.display='block';
-  document.getElementById('twin-token-display').textContent='Token: '+d.token.slice(0,32)+'…';
-}
-function clearAuthSession(){
-  twinAuthToken=null;twinUserId=null;
-  localStorage.removeItem('twinToken');
-  localStorage.removeItem('twinUserId');
-  document.getElementById('twin-token-display').style.display='none';
-}
-// Global 401 handler — call whenever a protected fetch returns 401
-function handle401(){
-  clearAuthSession();
-  setAuthMsg('Session expired — please log in again.','err');
-  showTwinTab('tab-auth');
-  document.querySelector('.twin-tab[onclick*="tab-auth"]')?.scrollIntoView({behavior:'smooth'});
 }
 function setAuthMsg(msg,cls){
   const el=document.getElementById('auth-msg');
@@ -1116,6 +1220,61 @@ function setAuthMsg(msg,cls){
 }
 
 // ── Questionnaire ──────────────────────────────────────────────
+// ── Scenario-specific questionnaire ────────────────────────────
+async function generateScenarioQuestions(){
+  if(!twinAuthToken){setAuthMsg('Log in first.','err');return;}
+  const desc=document.getElementById('scenario-desc-input').value.trim();
+  const statusEl=document.getElementById('scenario-gen-status');
+  if(!desc){statusEl.textContent='Please describe your scenario first.';statusEl.style.color='#f87171';return;}
+  statusEl.textContent='⏳ Generating tailored questions…';statusEl.style.color='#a599ff';
+  try{
+    const r=await fetch('/twin/scenario-questions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+      body:JSON.stringify({scenario_description:desc})
+    });
+    const d=await r.json();
+    if(d.error){statusEl.textContent='Error: '+d.error;statusEl.style.color='#f87171';return;}
+    const questions=d.questions||[];
+    statusEl.textContent='✓ '+questions.length+' questions generated!';statusEl.style.color='#2dd4a8';
+    renderScenarioQuestions(questions);
+  }catch(e){
+    statusEl.textContent='Failed to generate. Please try again.';statusEl.style.color='#f87171';
+  }
+}
+function renderScenarioQuestions(questions){
+  const cont=document.getElementById('scenario-q-container');
+  let html='<div style="border-top:1px solid #252a3a;margin-top:20px;padding-top:20px">';
+  html+='<h4 style="color:#a599ff;font-size:.9rem;font-weight:700;margin-bottom:16px">Your Personalised Preparation Questions</h4>';
+  questions.forEach(q=>{
+    const fullQ=q.question||q.label||q.id;
+    const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
+    html+=`<div class="q-item"><label>${fullQ}${req}</label>`;
+    if(q.type==='scale'){
+      const mn=q.scale_min??q.min??1,mx=q.scale_max??q.max??10;
+      html+='<div class="q-scale-wrap"><div class="q-scale">';
+      for(let i=mn;i<=mx;i++) html+=`<button type="button" onclick="setScaleVal('${q.id}',${i},this)">${i}</button>`;
+      html+='</div>';
+      const minL=q.scale_label_min||q.min_label||'',maxL=q.scale_label_max||q.max_label||'';
+      if(minL||maxL) html+=`<div class="q-scale-labels"><span>${minL}</span><span>${maxL}</span></div>`;
+      html+='</div>';
+    }else if(q.type==='single_select'||q.type==='multi_select'){
+      const multi=q.type==='multi_select';
+      if(multi) html+='<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>';
+      html+='<div class="q-chips">';
+      (q.options||[]).forEach(opt=>html+=`<button type="button" onclick="toggleChip('${q.id}','${opt}',this,${multi})">${opt}</button>`);
+      html+='</div>';
+    }else if(q.type==='textarea'){
+      html+=`<textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value"></textarea>`;
+    }else if(q.type==='text'){
+      html+=`<input type="text" id="q-${q.id}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none">`;
+    }
+    html+='</div>';
+  });
+  html+='</div>';
+  cont.innerHTML=html;
+}
+
 async function loadTwinForm(){
   if(!twinSchema){
     const r=await fetch('/twin/schema');
@@ -1123,43 +1282,10 @@ async function loadTwinForm(){
   }
   renderTwinForm(twinSchema);
 }
-// ── Scenario preparation state (questionnaire-level) ────────
-let _prepDesc = '';
-let _prepAnswers = {};
-let _prepQuestions = [];
-let _prepQuestionsLoaded = false;
-
 function renderTwinForm(schema){
   const cont=document.getElementById('twin-q-container');
   const total=schema.sections.reduce((s,sec)=>s+sec.questions.length,0);
-
-  // ── Scenario preparation block (shown above general questions) ──
-  let html=`
-  <div id="prep-scenario-block" style="background:#0b0d13;border:2px solid #7c6af655;border-radius:14px;padding:22px 24px;margin-bottom:24px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <span style="font-size:1.3rem">🎯</span>
-      <div>
-        <div style="font-size:.97rem;font-weight:700;color:#a599ff">Are you preparing for a specific scenario or person?</div>
-        <div style="font-size:.8rem;color:#7a809a;margin-top:2px">Tell us what you're preparing for — we'll generate targeted questions to enrich your Digital Twin with the right context.</div>
-      </div>
-      <label style="margin-left:auto;display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
-        <span style="font-size:.82rem;color:#7a809a">Enable</span>
-        <input type="checkbox" id="prep-toggle" onchange="togglePrepBlock()" style="accent-color:#7c6af6;width:17px;height:17px;cursor:pointer">
-      </label>
-    </div>
-
-    <div id="prep-hidden" style="display:none">
-      <label style="font-size:.85rem;color:#a0a5bb;display:block;margin-bottom:7px">Describe the scenario, role, person, or situation you are preparing for:</label>
-      <textarea id="prep-desc-ta" style="width:100%;background:#13161f;border:1px solid #2a3045;border-radius:10px;color:#d1d5e0;font-size:.87rem;padding:12px 14px;min-height:90px;resize:vertical;outline:none;font-family:inherit;transition:.2s" placeholder="e.g. I have a Series A pitch with Sequoia Capital next week. The lead partner is very metrics-driven and has passed on 3 similar startups before. I want to nail the first 5 minutes and handle tough questions about our burn rate…" oninput="_prepDesc=this.value"></textarea>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn-outline" onclick="loadPrepQuestions()" id="prep-gen-btn">→ Generate Preparation Questions</button>
-        <div id="prep-gen-loading" style="display:none;color:#a599ff;font-size:.82rem">⏳ Generating tailored questions…</div>
-      </div>
-      <div id="prep-questions-area" style="margin-top:18px"></div>
-    </div>
-  </div>`;
-
-  html+=`<div class="q-progress"><span>📋 ${total} general questions</span><span style="color:#7a809a;font-size:.79rem">Answer as many as possible for best accuracy</span></div>`;
+  let html=`<div class="q-progress"><span>📋 ${total} questions</span><span style="color:#7a809a;font-size:.79rem">Answer as many as possible for best accuracy</span></div>`;
   schema.sections.forEach(sec=>{
     const icon=sec.icon||'📌';
     html+=`<div class="q-section">
@@ -1190,7 +1316,7 @@ function renderTwinForm(schema){
         const hint=multi?`<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>`:'';
         html+=hint+`<div class="q-chips">`;
         (q.options||[]).forEach(opt=>{
-          html+=`<button type="button" onclick="toggleChip('${q.id}',${JSON.stringify(opt).replace(/"/g,'&quot;')},this,${multi})">${opt}</button>`;
+          html+=`<button type="button" onclick="toggleChip('${q.id}','${opt}',this,${multi})">${opt}</button>`;
         });
         html+=`</div>`;
       } else if(q.type==='textarea'){
@@ -1204,98 +1330,7 @@ function renderTwinForm(schema){
   });
   cont.innerHTML=html;
   document.getElementById('twin-q-nav').style.display='flex';
-  // Restore toggle state if it was previously enabled
-  if(_prepDesc || _prepQuestionsLoaded){
-    const tog = document.getElementById('prep-toggle');
-    if(tog){ tog.checked=true; document.getElementById('prep-hidden').style.display='block'; }
-    if(document.getElementById('prep-desc-ta')) document.getElementById('prep-desc-ta').value = _prepDesc;
-    if(_prepQuestionsLoaded) _renderPrepQuestions(_prepQuestions);
-  }
 }
-
-function togglePrepBlock(){
-  const show = document.getElementById('prep-toggle').checked;
-  document.getElementById('prep-hidden').style.display = show ? 'block' : 'none';
-  if(!show){ _prepDesc=''; _prepAnswers={}; _prepQuestions=[]; _prepQuestionsLoaded=false; }
-}
-
-async function loadPrepQuestions(){
-  const desc = document.getElementById('prep-desc-ta')?.value?.trim();
-  if(!desc){ alert('Please describe your scenario first.'); return; }
-  if(!twinAuthToken){ alert('Please log in first.'); return; }
-  _prepDesc = desc;
-  document.getElementById('prep-gen-loading').style.display='block';
-  document.getElementById('prep-gen-btn').disabled=true;
-  document.getElementById('prep-questions-area').innerHTML='';
-
-  const r = await fetch('/twin/scenario-questions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify({scenario_description:desc})
-  });
-  const d = await r.json();
-  document.getElementById('prep-gen-loading').style.display='none';
-  document.getElementById('prep-gen-btn').disabled=false;
-
-  if(d.error){ alert('Error: '+d.error); return; }
-  _prepQuestions = d.questions || [];
-  _prepQuestionsLoaded = true;
-  _renderPrepQuestions(_prepQuestions);
-}
-
-function _renderPrepQuestions(questions){
-  const area = document.getElementById('prep-questions-area');
-  if(!area || !questions.length) return;
-  let html = `<div style="border-top:1px solid #2a3045;padding-top:16px;margin-top:4px">`;
-  html += `<div style="font-size:.87rem;font-weight:700;color:#2dd4a8;margin-bottom:14px">📋 Answer these to help us build the most accurate twin context:</div>`;
-  questions.forEach(q=>{
-    const reqMark = q.required ? '<span style="color:#f87171;margin-left:3px">*</span>' : '';
-    html += `<div style="margin-bottom:14px;background:#13161f;border:1px solid #252a3a;border-radius:10px;padding:14px 16px">`;
-    html += `<label style="font-size:.87rem;font-weight:600;color:#d1d5e0;display:block;margin-bottom:8px">${q.question}${reqMark}</label>`;
-    if(q.type==='scale'){
-      const min=q.scale_min||1, max=q.scale_max||10;
-      html+=`<div style="display:flex;gap:5px;flex-wrap:wrap">`;
-      for(let i=min;i<=max;i++){
-        html+=`<button type="button" onclick="_prepScaleSet('${q.id}',${i},this)" style="flex:1;padding:7px;border-radius:7px;border:1px solid #252a3a;background:#0b0d13;color:#7a809a;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s;min-width:28px">${i}</button>`;
-      }
-      html+=`</div>`;
-      if(q.scale_label_min||q.scale_label_max){
-        html+=`<div style="display:flex;justify-content:space-between;font-size:.72rem;color:#7a809a;margin-top:4px"><span>${q.scale_label_min||''}</span><span>${q.scale_label_max||''}</span></div>`;
-      }
-    } else if(q.type==='single_select'||q.type==='multi_select'){
-      const multi=q.type==='multi_select';
-      html+=`<div style="display:flex;gap:7px;flex-wrap:wrap">`;
-      (q.options||[]).forEach(opt=>{
-        html+=`<button type="button" onclick="_prepChip('${q.id}',${JSON.stringify(opt).replace(/"/g,'&quot;')},this,${multi})" style="padding:7px 13px;border-radius:20px;border:1px solid #2a3045;background:#0b0d13;color:#a0a5bb;cursor:pointer;font-size:.82rem;transition:.2s">${opt}</button>`;
-      });
-      html+=`</div>`;
-    } else {
-      html+=`<textarea id="prepq-${q.id}" style="width:100%;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;padding:10px 13px;min-height:70px;resize:vertical;outline:none;font-family:inherit" placeholder="${q.placeholder||''}" oninput="_prepAnswers['${q.id}']=this.value"></textarea>`;
-    }
-    html+=`</div>`;
-  });
-  html += `</div>`;
-  area.innerHTML = html;
-}
-
-function _prepScaleSet(qid,val,btn){
-  _prepAnswers[qid]=val;
-  btn.closest('div').querySelectorAll('button').forEach(b=>{b.style.background='#0b0d13';b.style.color='#7a809a';b.style.borderColor='#252a3a';});
-  btn.style.background='#7c6af6';btn.style.color='#fff';btn.style.borderColor='#7c6af6';
-}
-function _prepChip(qid,val,btn,multi){
-  if(!multi){
-    btn.closest('div').querySelectorAll('button').forEach(b=>{b.style.background='#0b0d13';b.style.color='#a0a5bb';b.style.borderColor='#2a3045';});
-    _prepAnswers[qid]=val;
-    btn.style.background='rgba(124,106,246,.18)';btn.style.color='#a599ff';btn.style.borderColor='#7c6af6';
-  } else {
-    const arr=_prepAnswers[qid]||[];const idx=arr.indexOf(val);
-    if(idx>=0){arr.splice(idx,1);btn.style.background='#0b0d13';btn.style.color='#a0a5bb';btn.style.borderColor='#2a3045';}
-    else{arr.push(val);btn.style.background='rgba(124,106,246,.18)';btn.style.color='#a599ff';btn.style.borderColor='#7c6af6';}
-    _prepAnswers[qid]=arr;
-  }
-}
-
 function setScaleVal(qid,val,btn){
   twinFormData[qid]=val;
   btn.closest('.q-scale').querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
@@ -1516,79 +1551,89 @@ function saveFormAsPDF(){
   if(msgEl){ msgEl.textContent='✓ PDF downloaded.'; msgEl.className='auth-msg ok'; }
 }
 
-// ── Twin Video Upload (Multi-video) ───────────────────────────
-let twinVideoJobIds = [];   // list of completed job ids
-async function handleTwinVideos(input){
+// ── Twin Video Upload ──────────────────────────────────────────
+let twinVideoJobId = null;
+let twinVideoJobIds = JSON.parse(localStorage.getItem('twinVideoJobIds')||'[]');
+
+// Drag-and-drop for twin video drop zone
+(function(){
+  const dz = document.getElementById('twin-video-drop');
+  if(!dz) return;
+  dz.addEventListener('dragover', e=>{e.preventDefault();dz.style.borderColor='#7c6af6';dz.style.background='rgba(124,106,246,.07)';});
+  dz.addEventListener('dragleave', ()=>{dz.style.borderColor='#2a3045';dz.style.background='';});
+  dz.addEventListener('drop', e=>{
+    e.preventDefault();
+    dz.style.borderColor='#2a3045';dz.style.background='';
+    const inp = document.getElementById('twin-video-input');
+    if(e.dataTransfer.files.length && inp){
+      // DataTransfer → FileList cannot be assigned directly; trigger via the input
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f=>dt.items.add(f));
+      inp.files = dt.files;
+      handleTwinVideo(inp);
+    }
+  });
+})();
+async function handleTwinVideo(input){
   const files = Array.from(input.files);
   if(!files.length) return;
+  const statusEl = document.getElementById('twin-video-status');
+  const barEl    = document.getElementById('twin-video-bar');
   document.getElementById('twin-video-progress').style.display='block';
-  document.getElementById('twin-video-bar').style.width='5%';
+  document.getElementById('twin-video-name').textContent = files.map(f=>'📎 '+f.name).join('  ');
+  twinVideoJobIds = [];
 
-  const list = document.getElementById('twin-video-list');
-
-  for(let i=0; i<files.length; i++){
+  for(let i=0;i<files.length;i++){
     const file = files[i];
-    // Create a list entry
-    const row = document.createElement('div');
-    row.style.cssText='background:#0b0d13;border:1px solid #2a3045;border-radius:9px;padding:11px 14px;display:flex;align-items:center;gap:12px';
-    row.innerHTML = `<span style="font-size:1.2rem">🎬</span>
-      <div style="flex:1">
-        <div style="font-size:.86rem;font-weight:600;color:#d1d5e0">${file.name}</div>
-        <div id="twin-vstat-${i}" style="font-size:.78rem;color:#7a809a;margin-top:2px">Queued…</div>
-      </div>
-      <span id="twin-vtick-${i}" style="font-size:1.2rem"></span>`;
-    list.appendChild(row);
+    const label = files.length>1 ? `[${i+1}/${files.length}] ` : '';
 
-    const setVStat = (msg,col) => {
-      const el = document.getElementById('twin-vstat-'+i);
-      const tk = document.getElementById('twin-vtick-'+i);
-      if(el) el.textContent = msg;
-      if(tk) tk.textContent = col==='#2dd4a8' ? '✓' : col==='#f87171' ? '✗' : '⏳';
-    };
+    statusEl.textContent = label+'Initialising job…';
+    barEl.style.width = '5%';
 
-    setVStat('Initialising…','#a599ff');
-    const initRes = await fetch('/init-job',{method:'POST'});
-    const initData = await initRes.json();
+    const initData = await fetch('/init-job',{method:'POST'}).then(r=>r.json());
     const jobId = initData.job_id;
 
     const fd = new FormData();
     fd.append('video', file);
     fd.append('job_id', jobId);
-    setVStat('Uploading…','#a599ff');
-    document.getElementById('twin-video-bar').style.width = Math.round((i+0.3)/files.length*100)+'%';
+    statusEl.textContent = label+'Uploading…';
+    barEl.style.width = '20%';
+    const upData = await fetch('/upload',{method:'POST',body:fd}).then(r=>r.json());
+    if(upData.error){ statusEl.textContent='Upload error: '+upData.error; return; }
 
-    const upRes = await fetch('/upload',{method:'POST',body:fd});
-    const upData = await upRes.json();
-    if(upData.error){ setVStat('Upload error: '+upData.error,'#f87171'); continue; }
+    statusEl.textContent = label+'Analysing (face, body, voice…)';
+    barEl.style.width = '40%';
 
-    setVStat('Analysing…','#f59e0b');
+    // Poll until this video is done
     await new Promise(resolve=>{
-      const pt = setInterval(async()=>{
-        const sr = await fetch('/status/'+jobId);
-        const sd = await sr.json();
+      const t = setInterval(async()=>{
+        const sd = await fetch('/status/'+jobId).then(r=>r.json());
         if(sd.status==='done'){
-          clearInterval(pt);
+          clearInterval(t);
           twinVideoJobIds.push(jobId);
-          localStorage.setItem('twinVideoJobIds', JSON.stringify(twinVideoJobIds));
-          setVStat('✓ Ready','#2dd4a8');
-          document.getElementById('twin-video-bar').style.width = Math.round((i+1)/files.length*100)+'%';
+          twinVideoJobId = jobId;
           resolve();
         } else if(sd.status==='error'){
-          clearInterval(pt);
-          setVStat('Analysis error','#f87171');
+          clearInterval(t);
+          statusEl.textContent = label+'Analysis failed — please retry.';
+          statusEl.style.color='#f87171';
           resolve();
         } else {
-          setVStat(sd.progress||'Processing…','#f59e0b');
+          statusEl.textContent = label+(sd.progress||'Processing…');
+          barEl.style.width = '65%';
         }
       }, 3000);
     });
   }
 
-  document.getElementById('twin-video-status').textContent = twinVideoJobIds.length + ' video(s) ready for twin creation';
-  document.getElementById('twin-video-status').style.color = '#2dd4a8';
-  document.getElementById('twin-video-bar').style.width = '100%';
+  if(twinVideoJobIds.length===files.length){
+    localStorage.setItem('twinVideoJobIds', JSON.stringify(twinVideoJobIds));
+    barEl.style.width='100%';
+    const plural = files.length>1 ? files.length+' videos' : '1 video';
+    statusEl.textContent='✓ '+plural+' analysed — embodied model ready';
+    statusEl.style.color='#2dd4a8';
+  }
 }
-
 async function createTwin(){
   if(!twinAuthToken){setTwinStatus('Log in first.','err');return;}
   if(!twinSchema){
@@ -1603,40 +1648,38 @@ async function createTwin(){
     return;
   }
 
-  // Collect all available video job ids (multi-video)
-  const storedIds = JSON.parse(localStorage.getItem('twinVideoJobIds')||'[]');
-  const allVideoJobIds = [...new Set([...twinVideoJobIds, ...storedIds, ...(currentJobId?[currentJobId]:[])])];
-
-  if(!allVideoJobIds.length){
-    setTwinStatus('Upload and analyze at least one video first.','err');
+  // Require completed video analysis for embodied model
+  const videoJobId = twinVideoJobId || localStorage.getItem('twinVideoJobId') || currentJobId || null;
+  if(!videoJobId){
+    setTwinStatus('Upload and analyze your video first, then create twin.','err');
+    return;
+  }
+  const st = await fetch('/status/'+videoJobId).then(r=>r.json()).catch(()=>({status:'error'}));
+  if(st.status!=='done'){
+    setTwinStatus('Video analysis is still running. Please wait for completion.','err');
     return;
   }
 
-  setTwinStatus('Creating your twin from questionnaire + video(s)…');
-  // Build request body — include scenario preparation context if provided
-  const twinBody = {
-    form_data: twinFormData,
-    video_job_ids: allVideoJobIds,
-  };
-  if(_prepDesc){
-    twinBody.scenario_description = _prepDesc;
-    twinBody.scenario_answers = _prepAnswers;
-  }
+  setTwinStatus('Creating your twin from questionnaire + video…');
   const r=await fetch('/twin/create',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify(twinBody)
+    body:JSON.stringify({
+      form_data:twinFormData,
+      video_job_ids:twinVideoJobIds,
+      video_job_id:videoJobId,
+      scenario_description:(document.getElementById('scenario-desc-input')||{}).value||'',
+      scenario_answers:Object.fromEntries(Object.entries(twinFormData).filter(([k])=>k.startsWith('sq_')))
+    })
   });
   const d=await r.json();
-  if(r.status===401){handle401();return;}
   if(d.error){
     setTwinStatus(d.error,'err');
     return;
   }
   twinId=d.twin_id;
   localStorage.setItem('twinId',twinId);
-  const prepNote = _prepDesc ? ' + scenario context' : '';
-  setTwinStatus(`✓ Twin created from questionnaire${prepNote} + video! Go to "Run Simulation".`,'ok');
+  setTwinStatus('✓ Twin created using both questionnaire and video context! Go to "Run Simulation".','ok');
 }
 
 // ── Simulation ─────────────────────────────────────────────────
@@ -1644,14 +1687,16 @@ function refreshSimPanel(){
   const info=document.getElementById('sim-twin-info');
   if(twinId) info.innerHTML=`<div style="background:#0b0d13;border:1px solid #252a3a;border-radius:8px;padding:10px 14px;font-size:.84rem;color:#2dd4a8">✓ Twin ready: <strong>${twinId.slice(0,18)}…</strong></div>`;
   else info.innerHTML=`<div style="color:#f87171;font-size:.84rem">No twin created yet. Fill the questionnaire first.</div>`;
-  // Restore scenario browser if data exists (handles coming back to this tab)
+  // Show scenario description preview
+  const desc=(document.getElementById('scenario-desc-input')||{}).value||'';
+  const prev=document.getElementById('sim-scenario-preview');
+  if(prev) prev.textContent=desc.trim() ? '"'+desc.trim().slice(0,120)+(desc.length>120?'…':'')+'"' : 'No scenario described yet — go to Questionnaire → "Preparing for Something Specific?"';
+  // Restore scenario browser
   if(Object.keys(_allScenarios).length > 0){
     document.getElementById('sim-browser').style.display = 'block';
     _renderScenarioTabs();
-    const allKeys = Object.keys(_allScenarios);
-    const numericKeys = allKeys.filter(k=>k!=='custom').map(Number).sort((a,b)=>a-b);
-    const lastNumeric = numericKeys.slice(-1)[0];
-    const targetNum = _activeScenarioNum || (allKeys.includes('custom') ? 'custom' : lastNumeric);
+    const targetNum = _activeScenarioNum ||
+      Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b).slice(-1)[0];
     if(targetNum) _showScenario(targetNum);
   }
 }
@@ -1663,191 +1708,66 @@ async function startSimulation(){
   document.getElementById('sim-browser').style.display='none';
   document.getElementById('scen-tabs').innerHTML='';
   document.getElementById('scen-chat-box').innerHTML='';
-  // reset state
-  _lastRenderedScenario=0;
-  _activeScenarioNum=null;
+  _lastRenderedScenario=0;_activeScenarioNum=null;
   Object.keys(_allScenarios).forEach(k=>delete _allScenarios[k]);
-
-  const mode = document.querySelector('input[name="sim-mode"]:checked')?.value || 'predefined';
-  const body = {twin_id:twinId, mode};
-
-  if(mode==='custom'||mode==='both'){
-    // Auto-build persona from questionnaire scenario if not already done
-    if(!_customPersona){
-      if(!_prepDesc){
-        document.getElementById('sim-msg').textContent='Please describe your scenario in the Questionnaire tab ("Are you preparing for a specific scenario?") first.';
-        document.getElementById('sim-progress-wrap').style.display='none';
-        return;
-      }
-      // Build persona now
-      const wrap = document.getElementById('sim-custom-persona-wrap');
-      if(wrap) wrap.style.display='block';
-      const info = document.getElementById('sim-cp-status-info');
-      if(info){ info.style.display='block'; info.textContent='⏳ Building your custom persona…'; }
-      const pr = await fetch('/twin/custom-persona',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-        body:JSON.stringify({description:_prepDesc, questionnaire_answers:_prepAnswers})
-      });
-      if(pr.status===401){handle401();return;}
-      const pd = await pr.json();
-      if(pd.error){
-        const errEl = document.getElementById('sim-cp-error');
-        if(errEl){ errEl.style.display='block'; errEl.textContent='Error building persona: '+pd.error; }
-        if(info) info.style.display='none';
-        document.getElementById('sim-progress-wrap').style.display='none';
-        return;
-      }
-      _customPersona = pd;
-      _showPersonaReady(pd);
-    }
-    body.custom_persona = _customPersona;
-  }
-
-  // Update expected total shown to user
-  const expectedTotal = mode==='predefined' ? 10 : mode==='custom' ? 1 : 11;
-  document.getElementById('sim-count').textContent = '0 / '+expectedTotal;
-
   const r=await fetch('/simulation/begin',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify(body)
+    body:JSON.stringify({twin_id:twinId})
   });
   const d=await r.json();
-  if(r.status===401){handle401();return;}
   if(d.error){document.getElementById('sim-msg').textContent=d.error;return;}
   currentSimId=d.sim_id;
   pollSimulation();
 }
-let _lastRenderedScenario = 0;
-// ── Simulation mode + custom persona ──────────────────────────
+
 let _customPersona = null;
-let _scenarioQuestions = [];
-let _sqAnswers = {};
 
-function updateSimMode(){
-  const mode = document.querySelector('input[name="sim-mode"]:checked')?.value || 'predefined';
-  const wrap = document.getElementById('sim-custom-persona-wrap');
-  if(wrap) wrap.style.display = (mode==='custom'||mode==='both') ? 'block' : 'none';
-  // Show persona status if already built
-  if((mode==='custom'||mode==='both') && _customPersona){
-    _showPersonaReady(_customPersona);
-  } else if((mode==='custom'||mode==='both') && _prepDesc){
-    document.getElementById('sim-cp-status-info').style.display='block';
-    document.getElementById('sim-cp-status-info').textContent='📝 Scenario from questionnaire ready — persona will be built when you start the simulation.';
+async function startTargetedSimulation(){
+  if(!twinAuthToken||!twinId){document.getElementById('targeted-sim-msg').textContent='Create a twin first.';return;}
+  const desc=(document.getElementById('scenario-desc-input')||{}).value||'';
+  if(!desc.trim()){
+    document.getElementById('targeted-sim-msg').textContent='Please describe your scenario in the Questionnaire tab first (“Preparing for Something Specific?”).';
+    return;
   }
-  const btn = document.getElementById('sim-start-btn');
-  const labels = {predefined:'▶ Start 10 Simulations', custom:'▶ Start Custom Simulation', both:'▶ Start All Simulations'};
-  if(btn) btn.textContent = labels[mode] || '▶ Start Simulation';
-}
-function _showPersonaReady(d){
-  const info = document.getElementById('sim-cp-status-info');
-  const ready = document.getElementById('sim-cp-ready');
-  const sumEl = document.getElementById('sim-cp-summary');
-  if(info) info.style.display='none';
-  if(ready) ready.style.display='block';
-  if(sumEl) sumEl.innerHTML=`<strong style="color:#f0f2f8">${d.persona_name||'?'}</strong> · ${d.persona_title||''}<br><em>${d.personality_summary||''}</em><br>Goal: ${d.primary_goal||''}${d.pressure_level?`<br>Pressure: ${d.pressure_level}/10`:''}  `;
-}
-
-async function loadScenarioQuestions(){
-  const desc = document.getElementById('sim-persona-desc')?.value?.trim();
-  if(!desc){alert('Please describe the person first.');return;}
-  document.getElementById('sim-sq-loading').style.display='block';
-  document.getElementById('sim-cp-step2').style.display='none';
-  _sqAnswers = {};
-
-  const r = await fetch('/twin/scenario-questions',{
+  document.getElementById('targeted-sim-msg').textContent='';
+  document.getElementById('sim-progress-wrap').style.display='block';
+  document.getElementById('sim-status-txt').textContent='Building their Digital Twin…';
+  document.getElementById('sim-browser').style.display='none';
+  document.getElementById('scen-tabs').innerHTML='';
+  document.getElementById('scen-chat-box').innerHTML='';
+  _lastRenderedScenario=0;_activeScenarioNum=null;
+  Object.keys(_allScenarios).forEach(k=>delete _allScenarios[k]);
+  const pr=await fetch('/twin/custom-persona',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify({scenario_description:desc})
+    body:JSON.stringify({
+      description:desc,
+      questionnaire_answers:twinFormData,
+      twin_id:twinId
+    })
   });
-  const d = await r.json();
-  document.getElementById('sim-sq-loading').style.display='none';
-  if(d.error){alert('Error: '+d.error);return;}
-
-  _scenarioQuestions = d.questions || [];
-  _renderScenarioQuestions(_scenarioQuestions);
-  document.getElementById('sim-cp-step2').style.display='block';
-}
-
-function _renderScenarioQuestions(questions){
-  const cont = document.getElementById('sim-sq-container');
-  cont.innerHTML = '';
-  questions.forEach(q=>{
-    const div = document.createElement('div');
-    div.style.cssText='margin-bottom:14px;background:#0b0d13;border:1px solid #252a3a;border-radius:10px;padding:14px 16px';
-    const reqMark = q.required ? '<span style="color:#f87171;margin-left:3px">*</span>' : '';
-    let inputHTML = '';
-
-    if(q.type==='scale'){
-      const min=q.scale_min||1, max=q.scale_max||10;
-      inputHTML='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">';
-      for(let i=min;i<=max;i++){
-        inputHTML+=`<button type="button" onclick="_sqScaleSet('${q.id}',${i},this)" style="flex:1;padding:7px;border-radius:7px;border:1px solid #252a3a;background:#13161f;color:#7a809a;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s;min-width:28px">${i}</button>`;
-      }
-      inputHTML+='</div>';
-      if(q.scale_label_min||q.scale_label_max){
-        inputHTML+=`<div style="display:flex;justify-content:space-between;font-size:.72rem;color:#7a809a;margin-top:4px"><span>${q.scale_label_min||''}</span><span>${q.scale_label_max||''}</span></div>`;
-      }
-    } else if(q.type==='single_select'||q.type==='multi_select'){
-      const multi=q.type==='multi_select';
-      inputHTML=`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">`;
-      (q.options||[]).forEach(opt=>{
-        inputHTML+=`<button type="button" onclick="_sqChip('${q.id}',${JSON.stringify(opt).replace(/"/g,'&quot;')},this,${multi})" style="padding:7px 13px;border-radius:20px;border:1px solid #2a3045;background:#0b0d13;color:#a0a5bb;cursor:pointer;font-size:.82rem;transition:.2s">${opt}</button>`;
-      });
-      inputHTML+='</div>';
-    } else {
-      inputHTML=`<textarea id="sq-${q.id}" style="width:100%;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;padding:10px 13px;min-height:70px;resize:vertical;outline:none;margin-top:8px;font-family:inherit" placeholder="${q.placeholder||''}" oninput="_sqAnswers['${q.id}']=this.value"></textarea>`;
-    }
-
-    div.innerHTML=`<label style="font-size:.87rem;font-weight:600;color:#d1d5e0;display:block">${q.question}${reqMark}</label>${inputHTML}`;
-    cont.appendChild(div);
-  });
-}
-
-function _sqScaleSet(qid,val,btn){
-  _sqAnswers[qid]=val;
-  btn.closest('div').querySelectorAll('button').forEach(b=>{b.style.background='#13161f';b.style.color='#7a809a';b.style.borderColor='#252a3a';});
-  btn.style.background='#7c6af6';btn.style.color='#fff';btn.style.borderColor='#7c6af6';
-}
-function _sqChip(qid,val,btn,multi){
-  if(!multi){
-    btn.closest('div').querySelectorAll('button').forEach(b=>{b.style.background='#0b0d13';b.style.color='#a0a5bb';b.style.borderColor='#2a3045';});
-    _sqAnswers[qid]=val;
-    btn.style.background='rgba(124,106,246,.18)';btn.style.color='#a599ff';btn.style.borderColor='#7c6af6';
-  } else {
-    const arr=_sqAnswers[qid]||[];const idx=arr.indexOf(val);
-    if(idx>=0){arr.splice(idx,1);btn.style.background='#0b0d13';btn.style.color='#a0a5bb';btn.style.borderColor='#2a3045';}
-    else{arr.push(val);btn.style.background='rgba(124,106,246,.18)';btn.style.color='#a599ff';btn.style.borderColor='#7c6af6';}
-    _sqAnswers[qid]=arr;
+  const persona=await pr.json();
+  if(persona.error){
+    document.getElementById('sim-status-txt').textContent='Failed to build their twin: '+persona.error;
+    return;
   }
-}
-
-async function buildCustomPersona(){
-  const desc = document.getElementById('sim-persona-desc')?.value?.trim();
-  if(!desc){alert('Please describe the person first.');return;}
-  const statusEl = document.getElementById('sim-cp-status');
-  statusEl.textContent='⏳ Building persona…';statusEl.style.color='#a599ff';
-
-  const r = await fetch('/twin/custom-persona',{
+  _customPersona=persona;
+  document.getElementById('sim-status-txt').textContent='Starting conversation simulation…';
+  const r=await fetch('/simulation/begin',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify({description:desc, questionnaire_answers:_sqAnswers})
+    body:JSON.stringify({twin_id:twinId,mode:'custom',custom_persona:persona})
   });
-  const d = await r.json();
-  if(d.error){statusEl.textContent='Error: '+d.error;statusEl.style.color='#f87171';return;}
-  _customPersona = d;
-
-  document.getElementById('sim-cp-step3').style.display='block';
-  const summaryEl = document.getElementById('sim-cp-summary');
-  summaryEl.innerHTML=`
-    <strong style="color:#f0f2f8">${d.persona_name||'?'}</strong> · ${d.persona_title||''}<br>
-    <em>${d.personality_summary||''}</em><br>
-    Goal: ${d.primary_goal||''}
-    ${d.pressure_level?`<br>Pressure level: ${d.pressure_level}/10`:''}
-  `;
-  statusEl.textContent='✓ Persona ready — you can now start the simulation.';statusEl.style.color='#2dd4a8';
+  const d=await r.json();
+  if(d.error){document.getElementById('targeted-sim-msg').textContent=d.error;return;}
+  currentSimId=d.sim_id;
+  pollSimulation();
 }
+
+async function generateCustomPersona(){}
+async function startCustomSimulation(mode){}
+let _lastRenderedScenario = 0;
 const _allScenarios = {};  // scenario_num → live_turn data
 let _activeScenarioNum = null;
 
@@ -1873,19 +1793,14 @@ function _renderScenarioTabs(){
   const container = document.getElementById('scen-tabs');
   if(!container) return;
   container.innerHTML = '';
-  // Sort numeric keys first, then 'custom'
-  const allKeys = Object.keys(_allScenarios);
-  const numericKeys = allKeys.filter(k=>k!=='custom').map(Number).sort((a,b)=>a-b);
-  const keys = [...numericKeys, ...(allKeys.includes('custom') ? ['custom'] : [])];
-  keys.forEach(num => {
+  const nums = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b);
+  nums.forEach(num => {
     const s = _allScenarios[num];
     const btn = document.createElement('button');
-    const isCustom = num === 'custom';
     btn.className = 'scen-tab-btn' + (s.score != null ? ' ' + _verdictClass(s.score) : '');
-    if(isCustom) btn.style.cssText='border-style:dashed;font-style:italic';
     if(num === _activeScenarioNum) btn.classList.add('active');
-    const catEmoji = isCustom ? '🧬' : s.category === 'job_interview' ? '💼' : s.category === 'investor_pitch' ? '💡' : '❤️';
-    btn.textContent = catEmoji + (isCustom ? ' Custom' : ' #' + num);
+    const catEmoji = s.category === 'job_interview' ? '💼' : s.category === 'investor_pitch' ? '💡' : '❤️';
+    btn.textContent = catEmoji + ' #' + num;
     btn.title = s.counter_party || '';
     btn.onclick = () => _showScenario(num);
     container.appendChild(btn);
@@ -1898,20 +1813,15 @@ function _showScenario(num){
   if(!s) return;
 
   // update tab highlights
-  const allKeys = Object.keys(_allScenarios);
-  const numericKeys = allKeys.filter(k=>k!=='custom').map(Number).sort((a,b)=>a-b);
-  const keys = [...numericKeys, ...(allKeys.includes('custom') ? ['custom'] : [])];
   document.querySelectorAll('.scen-tab-btn').forEach((b,i)=>{
-    b.classList.toggle('active', keys[i] == num);
+    const n = Object.keys(_allScenarios).map(Number).sort((a,b)=>a-b)[i];
+    b.classList.toggle('active', n === num);
   });
 
-  const isCustom = num === 'custom';
   // update header
-  document.getElementById('scen-badge').textContent = isCustom ? 'CUSTOM PERSONA SIMULATION' : 'SCENARIO ' + num + ' / ' + (s.total || 10);
-  document.getElementById('scen-name').textContent = s.counter_party || (isCustom ? 'Custom Persona' : 'Scenario ' + num);
-  document.getElementById('scen-cat').textContent = isCustom
-    ? '🧬 Custom · ' + (s.persona && s.persona.persona_title ? s.persona.persona_title : '50-turn simulation')
-    : (CATEGORY_LABELS[s.category] || s.category || '');
+  document.getElementById('scen-badge').textContent = 'SCENARIO ' + num + ' / ' + (s.total || 10);
+  document.getElementById('scen-name').textContent = s.counter_party || 'Scenario ' + num;
+  document.getElementById('scen-cat').textContent = CATEGORY_LABELS[s.category] || s.category || '';
 
   const pill = document.getElementById('scen-score-pill');
   if(s.score != null){
@@ -1994,33 +1904,12 @@ function pollSimulation(){
     if(d.status==='completed'||d.status==='error'){
       clearInterval(simPollTimer);
       document.getElementById('sim-browser-live-badge').style.display = 'none';
-      // Add custom persona result as a tab if present
-      if(d.custom_result){
-        const cr = d.custom_result;
-        const customNum = (d.total || 10) ; // last slot
-        _allScenarios['custom'] = {
-          scenario_num: 'custom',
-          total: d.total,
-          category: cr.category || 'custom',
-          counter_party: cr.counter_party_name || (cr.custom_persona && cr.custom_persona.persona_name) || 'Custom Persona',
-          score: cr.overall_score ?? cr.score ?? null,
-          outcome: cr.verdict || '',
-          conversation: cr.conversation || [],
-          is_custom: true,
-          persona: cr.custom_persona || {},
-        };
-        _renderScenarioTabs();
-        // Auto-show custom if nothing is selected
-        if(!_activeScenarioNum) _showScenario('custom');
-      }
       if(d.status==='completed') runAnalysis();
     }
   },2500);
 }
 async function runAnalysis(){
   document.getElementById('sim-status-txt').textContent='🧠 Running cluster analysis…';
-  // Also fetch latest sim state to get custom_result
-  const simSnapshot = await fetch('/simulation/'+currentSimId,{headers:{'Authorization':'Bearer '+twinAuthToken}}).then(r=>r.json()).catch(()=>({}));
   const r=await fetch('/analysis/'+currentSimId,{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
@@ -2029,8 +1918,6 @@ async function runAnalysis(){
   const d=await r.json();
   if(d.error){document.getElementById('sim-status-txt').textContent='Analysis error: '+d.error;return;}
   latestAnalysisData = d;
-  // Attach custom persona result if available
-  if(simSnapshot.custom_result) d._custom_result = simSnapshot.custom_result;
   renderTwinResults(d);
   document.getElementById('sim-status-txt').textContent='✓ Analysis complete! Check "Results & Coaching".';
   // Auto-switch to results tab
@@ -2189,38 +2076,6 @@ function renderTwinResults(data){
   // Executive summary
   const summary=fb.executive_summary||cr.critical_insight||'Analysis complete.';
 
-  // Custom persona result section
-  let customHtml = '';
-  const cr2 = data._custom_result;
-  if(cr2){
-    const cp = cr2.custom_persona || {};
-    const conv = (cr2.conversation || []).slice(-8);
-    const cscore = cr2.overall_score || cr2.score || 0;
-    const ccolor = cscore>=7?'#2dd4a8':cscore>=5?'#f59e0b':'#f87171';
-    let convHtml='';
-    conv.forEach(msg=>{
-      const isAgent=msg.role==='agent';
-      convHtml+=`<div style="margin:5px 0;padding:9px 13px;border-radius:9px;background:${isAgent?'#1a1e2b':'#111520'};border-left:3px solid ${isAgent?'#7c6af6':'#2dd4a8'}">
-        <div style="font-size:.71rem;font-weight:700;color:${isAgent?'#a599ff':'#2dd4a8'};margin-bottom:3px">${isAgent?'🤖 '+(cp.persona_name||'Persona'):'👤 Your Twin'}</div>
-        <div style="font-size:.84rem;color:#d1d5e0;line-height:1.55">${msg.content}</div>
-      </div>`;
-    });
-    customHtml=`<div class="card" style="background:#0b0d13;border:2px solid #7c6af622;margin-bottom:24px">
-      <h2 style="color:#a599ff">🧬 Custom Persona Simulation Result</h2>
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap">
-        <div style="font-size:1.6rem;font-weight:800;color:${ccolor}">${cscore}/10</div>
-        <div>
-          <div style="font-size:.9rem;font-weight:700;color:#f0f2f8">${cp.persona_name||'Custom Persona'} — ${cp.persona_title||''}</div>
-          <div style="font-size:.82rem;color:#7a809a;margin-top:3px">${cp.personality_summary||''}</div>
-        </div>
-      </div>
-      ${cr2.verdict?`<div style="background:#0a1a1f;border:1px solid #2dd4a855;border-radius:9px;padding:11px 14px;font-size:.86rem;color:#c8f5e9;margin-bottom:14px">${cr2.verdict}</div>`:''}
-      <div style="font-size:.8rem;font-weight:700;color:#7a809a;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px">Final Exchanges (last 8 turns)</div>
-      ${convHtml}
-      ${cr2.improvement_tags&&cr2.improvement_tags.length?`<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:7px">${cr2.improvement_tags.map(t=>`<span style="background:rgba(124,106,246,.15);color:#a599ff;border:1px solid rgba(124,106,246,.3);padding:4px 12px;border-radius:20px;font-size:.77rem;font-weight:700">${t}</span>`).join('')}</div>`:''}
-    </div>`;
-  }
-
   c.innerHTML=`
     <div class="counsellor-banner" style="margin-bottom:24px">
       <h2>🏆 Your Twin's Coaching Report</h2>
@@ -2229,7 +2084,6 @@ function renderTwinResults(data){
         <button class="btn-outline" onclick="saveCoachingAsPDF()">📄 Download Coaching PDF</button>
       </div>
     </div>
-    ${customHtml}
     <div class="card" style="background:#13161f;margin-bottom:24px">
       <h2>📊 Simulation Statistics</h2>${statsHtml}</div>
     ${insightHtml}
@@ -2416,6 +2270,83 @@ function switchMode(m){
   document.getElementById('btn-twin').classList.toggle('active',  m==='twin');
   if(m==='twin' && twinAuthToken && !twinSchema) loadTwinForm();
 }
+
+// ── Login Gate ─────────────────────────────────────────────────
+function initAuthGate(){
+  if(twinAuthToken){
+    document.getElementById('login-gate').style.display='none';
+    document.getElementById('btn-logout').style.display='block';
+  }
+}
+function gateSetMsg(msg,cls){
+  const el=document.getElementById('gate-msg');
+  el.textContent=msg;el.className='auth-msg '+(cls||'');
+}
+function gateSwitchToLogin(){
+  document.getElementById('gate-title').textContent='Log in to your account';
+  document.getElementById('gate-name-wrap').style.display='none';
+  document.getElementById('gate-main-btn').textContent='Log In';
+  document.getElementById('gate-main-btn').onclick=gateLogin;
+  const link=document.getElementById('gate-switch-link');
+  link.textContent='Register instead';
+  link.onclick=function(){gateSwitchToRegister();return false;};
+  document.getElementById('gate-fields').style.display='block';
+  document.getElementById('gate-success').style.display='none';
+  gateSetMsg('','');
+}
+function gateSwitchToRegister(){
+  document.getElementById('gate-title').textContent='Create your account';
+  document.getElementById('gate-name-wrap').style.display='block';
+  document.getElementById('gate-main-btn').textContent='Register';
+  document.getElementById('gate-main-btn').onclick=gateRegister;
+  const link=document.getElementById('gate-switch-link');
+  link.textContent='Log In';
+  link.onclick=function(){gateSwitchToLogin();return false;};
+  gateSetMsg('','');
+}
+function gateShowLoginAfterRegister(){
+  document.getElementById('gate-password').value='';
+  gateSwitchToLogin();
+}
+async function gateRegister(){
+  const email=document.getElementById('gate-email').value.trim();
+  const name=document.getElementById('gate-name').value.trim();
+  const pw=document.getElementById('gate-password').value;
+  gateSetMsg('Registering…','');
+  const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name,password:pw})});
+  const d=await r.json();
+  if(d.error){gateSetMsg(d.error,'err');return;}
+  gateSetMsg('','');
+  document.getElementById('gate-fields').style.display='none';
+  document.getElementById('gate-success').style.display='block';
+}
+async function gateLogin(){
+  const email=document.getElementById('gate-email').value.trim();
+  const pw=document.getElementById('gate-password').value;
+  gateSetMsg('Logging in…','');
+  const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});
+  const d=await r.json();
+  if(d.error){gateSetMsg(d.error,'err');return;}
+  saveAuthSession(d);
+  document.getElementById('login-gate').style.display='none';
+  document.getElementById('btn-logout').style.display='block';
+  gateSetMsg('','');
+}
+function logout(){
+  twinAuthToken=null;twinUserId=null;twinId=null;
+  localStorage.removeItem('twinToken');
+  localStorage.removeItem('twinUserId');
+  localStorage.removeItem('twinId');
+  gateSwitchToRegister();
+  document.getElementById('gate-email').value='';
+  document.getElementById('gate-name').value='';
+  document.getElementById('gate-password').value='';
+  document.getElementById('gate-fields').style.display='block';
+  document.getElementById('gate-success').style.display='none';
+  document.getElementById('login-gate').style.display='flex';
+  document.getElementById('btn-logout').style.display='none';
+}
+initAuthGate();
 </script>
 
 </div><!-- end #mode-twin -->

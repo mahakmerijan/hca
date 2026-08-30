@@ -250,7 +250,7 @@ def _build_analysis_context(results: dict, user_context: dict = None) -> str:
 
 class GeminiCounsellor:
     def __init__(self):
-        self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-pro")
+        self.model_name = os.getenv("COUNSELLOR_MODEL", "gemini-2.5-pro")
         self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
         self._location = os.getenv("VERTEX_LOCATION", "us-central1")
         self.available = False
@@ -295,18 +295,38 @@ class GeminiCounsellor:
             log_call(self.model_name, "GeminiCounsellor", _inp, _out,
                      extra={"job_id": (user_context or {}).get("job_id", "")})
             text = response.text.strip()
-            # Strip fenced code blocks (```json ... ``` or ``` ... ```)
+            # Strip fenced code blocks
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):
                 text = text[:-3].strip()
             if text.startswith("json"):
                 text = text[4:].strip()
-            # Extract outermost JSON object — handles trailing prose/thinking tokens
+            # Balance-count to extract the outermost JSON object
             import re as _re
-            m = _re.search(r'\{.*\}', text, _re.DOTALL)
-            if m:
-                text = m.group(0)
+            start = text.find('{')
+            if start != -1:
+                depth, end = 0, -1
+                in_str, escape = False, False
+                for i, ch in enumerate(text[start:], start):
+                    if escape:
+                        escape = False
+                    elif ch == '\\' and in_str:
+                        escape = True
+                    elif ch == '"':
+                        in_str = not in_str
+                    elif not in_str:
+                        if ch == '{':
+                            depth += 1
+                        elif ch == '}':
+                            depth -= 1
+                            if depth == 0:
+                                end = i + 1
+                                break
+                if end != -1:
+                    text = text[start:end]
+            # Remove trailing commas before } or ] (common model artefact)
+            text = _re.sub(r',(\s*[}\]])', r'\1', text)
 
             report = json.loads(text)
             return report

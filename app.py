@@ -62,6 +62,42 @@ if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             print(f"[Startup] Could not write GCP credentials temp file: {_e}")
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Option C: GOOGLE_API_KEY (simplest — no GCP account needed) ──────────────
+# If no GCP credentials were configured above, fall back to a plain Gemini API
+# key. We monkey-patch genai.Client here so every module in the codebase
+# transparently uses API-key mode without any per-file code changes.
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    _ak = os.getenv("GOOGLE_API_KEY", "").strip()
+    if _ak:
+        try:
+            from google import genai as _gm
+            _OrigClient = _gm.Client
+            def _api_key_client(vertexai=None, project=None, location=None, **kw):
+                return _OrigClient(api_key=_ak, **kw)
+            _gm.Client = _api_key_client
+            print("[Startup] GOOGLE_API_KEY mode — all Gemini calls will use API key")
+        except Exception as _ex:
+            print(f"[Startup] GOOGLE_API_KEY patch failed: {_ex}")
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Option C: GOOGLE_API_KEY (simplest — no GCP account needed) ──────────────
+# If no GCP credentials were configured above, fall back to a plain Gemini API
+# key. We monkey-patch genai.Client here so every module in the codebase
+# transparently uses API-key mode without any per-file code changes.
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    _ak = os.getenv("GOOGLE_API_KEY", "").strip()
+    if _ak:
+        try:
+            from google import genai as _gm
+            _OrigClient = _gm.Client
+            def _api_key_client(vertexai=None, project=None, location=None, **kw):
+                return _OrigClient(api_key=_ak, **kw)
+            _gm.Client = _api_key_client
+            print("[Startup] GOOGLE_API_KEY mode — all Gemini calls will use API key")
+        except Exception as _ex:
+            print(f"[Startup] GOOGLE_API_KEY patch failed: {_ex}")
+# ─────────────────────────────────────────────────────────────────────────────
+
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -300,39 +336,41 @@ def _run_analysis(job_id: str, video_path: str):
         ).VideoProcessor(video_path, agent.frame_sample_rate)
         agent.results["video_info"] = agent.video_processor.get_video_info()
 
-        # Step 2 – estimate sampled frames
-        jobs[job_id]["progress"] = "Preparing video frames…"
-        sampled_frame_count = agent.video_processor.get_sampled_frame_count()
+        # Step 2 – extract all sampled frames once (reused by steps 4 & 5)
+        jobs[job_id]["progress"] = "Extracting video frames…"
+        frames = agent.video_processor.extract_frames()
 
-        # Step 3 – extract audio into a temp file (no uploads/ directory needed)
+        # Step 3 – extract audio into a temp file
         jobs[job_id]["progress"] = "Extracting audio…"
         audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
         audio_tmp_path = audio_tmp.name
         audio_tmp.close()
         audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
-        # Steps 4+5 – facial expressions AND body language in a single frame pass.
-        # Processing both together means we read each frame only once, keeping
-        # peak memory equal to one frame rather than accumulating all frames.
-        jobs[job_id]["progress"] = "Analyzing facial expressions & body language…"
+        # Step 4 – facial expressions via DeepFace
+        jobs[job_id]["progress"] = "Analysing facial expressions…"
         from agent.analyzers.facial_expression import FacialExpressionAnalyzer
-        from agent.analyzers.body_language import BodyLanguageAnalyzer
         agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        agent.body_analyzer   = BodyLanguageAnalyzer(agent.pose_confidence)
-        for idx, frame in agent.video_processor.iter_frames():
+        for idx, frame in frames:
             agent.facial_analyzer.analyze_frame(frame, idx)
-            agent.body_analyzer.analyze_frame(frame, idx)
-            # frame goes out of scope here — not accumulated in memory
-        agent.results["facial_analysis"]       = agent.facial_analyzer.get_summary()
-        agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
-        # Release ML models immediately before audio step to free memory
+        agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
         agent.facial_analyzer = None
-        agent.body_analyzer.release()
-        agent.body_analyzer = None
         gc.collect()
 
-        # Step 6 – voice / speech (full audio analysis)
-        jobs[job_id]["progress"] = "Analyzing voice & speech…"
+        # Step 5 – body language via MediaPipe pose + hand
+        jobs[job_id]["progress"] = "Analysing body language & posture…"
+        from agent.analyzers.body_language import BodyLanguageAnalyzer
+        agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
+        for idx, frame in frames:
+            agent.body_analyzer.analyze_frame(frame, idx)
+        agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
+        agent.body_analyzer.release()
+        agent.body_analyzer = None
+        frames = None
+        gc.collect()
+
+        # Step 6 – voice / speech via librosa + SpeechRecognition
+        jobs[job_id]["progress"] = "Analysing voice & speech patterns…"
         from agent.analyzers.voice_speech import VoiceSpeechAnalyzer
         agent.voice_analyzer = VoiceSpeechAnalyzer(agent.audio_segment_duration)
         if audio_path_result:
@@ -354,9 +392,7 @@ def _run_analysis(job_id: str, video_path: str):
             counselling = {"error": "AI counsellor unavailable at startup"}
         agent.results["counselling"] = counselling
 
-        # Cleanup video processor (analyzers already released above)
-        if agent.body_analyzer:  # fallback in case of early-exit path
-            agent.body_analyzer.release()
+        # Cleanup video processor (vision/voice analyzers already released above)
         if agent.video_processor:
             agent.video_processor.release()
         gc.collect()
@@ -365,6 +401,13 @@ def _run_analysis(job_id: str, video_path: str):
         jobs[job_id]["status"] = "done"
         jobs[job_id]["progress"] = "Complete"
         jobs[job_id]["results"] = json.loads(json.dumps(agent.results, default=str))
+
+        # Print token usage summary to console (useful in local dev)
+        try:
+            from agent.token_logger import print_job_token_summary
+            print_job_token_summary(job_id)
+        except Exception:
+            pass
 
     except Exception as exc:
         import traceback
@@ -678,18 +721,37 @@ def scenario_questions():
 def custom_persona_create():
     """
     POST {
-      description: "A senior partner at McKinsey who is very data-driven...",
-      questionnaire_answers: { "sq_stakes": 9, "sq_goal": "get an offer", ... }
-    }
-    → custom persona dict (same shape as built-in archetypes)
-
-    Creates a simulation-ready counter-party persona from the user's description.
-    Store the result and pass it as custom_persona to /simulation/begin.
+      description, questionnaire_answers, twin_id?
+    } → custom persona dict
     """
     data = request.get_json(force=True)
     description = data.get("description", "").strip()
     if not description:
         return jsonify({"error": "description is required"}), 400
+
+    # Fetch the user's own twin persona summary for calibration
+    user_twin_summary = None
+    twin_id = data.get("twin_id")
+    if twin_id:
+        _, twin_svc, *_ = _services()
+        twin = twin_svc.get_twin(twin_id)
+        if twin and twin.get("persona"):
+            p = twin["persona"]
+            user_twin_summary = (
+                p.get("persona_summary") or
+                p.get("twin_name", "")
+            )
+            # Also append key communication fingerprint fields
+            cf = p.get("communication_fingerprint", {})
+            if cf:
+                user_twin_summary += (
+                    f"\nCommunication style: directness={cf.get('directness','?')}, "
+                    f"emotional_expressiveness={cf.get('emotional_expressiveness','?')}, "
+                    f"response_length={cf.get('response_length','?')}"
+                )
+            ws = p.get("weaknesses_in_simulation", [])
+            if ws:
+                user_twin_summary += f"\nKnown weaknesses to target: {'; '.join(ws[:3])}"
 
     from agent.simulation.custom_persona_generator import CustomPersonaGenerator
     gen = CustomPersonaGenerator()
@@ -697,6 +759,7 @@ def custom_persona_create():
         description=description,
         questionnaire_answers=data.get("questionnaire_answers", {}),
         user_id=request.user_id,
+        user_twin_summary=user_twin_summary,
     )
     return jsonify(persona)
 

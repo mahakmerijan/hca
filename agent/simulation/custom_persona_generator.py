@@ -81,33 +81,46 @@ class CustomPersonaGenerator:
         description: str,
         questionnaire_answers: Optional[dict] = None,
         user_id: Optional[str] = None,
+        user_twin_summary: Optional[str] = None,
     ) -> dict:
         """
         Build a custom counter-party persona.
 
         Args:
             description:           User's free-text description of who they're preparing for
-            questionnaire_answers: Dict of {question_id: answer} from the scenario questionnaire
+            questionnaire_answers: Full twinFormData dict (general + sq_* scenario answers)
             user_id:               Optional user context for token logging
-
-        Returns:
-            Persona dict ready to be stored and passed into the custom simulation
+            user_twin_summary:     Brief persona summary of the user's own twin (for calibration)
         """
         if not self.client:
             return self._fallback_persona(description)
 
-        # Build a rich context string from answers
-        answers_text = ""
-        if questionnaire_answers:
-            answers_text = "\n\nUser's preparation questionnaire answers:\n"
-            for qid, answer in questionnaire_answers.items():
-                answers_text += f"- {qid}: {answer}\n"
+        # Separate general personality answers from scenario-specific (sq_*) answers
+        general_answers, scenario_answers = {}, {}
+        for qid, answer in (questionnaire_answers or {}).items():
+            if qid.startswith("sq_") or qid.startswith("_scenario"):
+                scenario_answers[qid] = answer
+            else:
+                general_answers[qid] = answer
+
+        def _fmt(d):
+            return "\n".join(f"  - {k}: {v}" for k, v in d.items() if v not in (None, "", [], {}))
+
+        user_context = ""
+        if user_twin_summary:
+            user_context += f"\n\n=== WHO THEY'RE MEETING (the user's own profile) ===\n{user_twin_summary}\n"
+        if general_answers:
+            user_context += f"\n\n=== USER'S GENERAL PERSONALITY (context for calibration) ===\n{_fmt(general_answers)}\n"
+        if scenario_answers:
+            user_context += f"\n\n=== USER'S SCENARIO-SPECIFIC ANSWERS (about this meeting) ===\n{_fmt(scenario_answers)}\n"
 
         user_prompt = (
             f"The user is preparing for the following interaction:\n\n"
             f"\"{description}\"\n"
-            f"{answers_text}\n"
-            f"Create a simulation persona that realistically represents the person/situation described."
+            f"{user_context}\n\n"
+            f"Using ALL the above context, create a simulation persona that realistically represents "
+            f"the person/situation described. Calibrate their pressure level, communication style, "
+            f"and curveball questions specifically to challenge THIS user based on their known profile."
         )
 
         try:

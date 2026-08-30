@@ -41,7 +41,7 @@ def _call_gemini(system: str, user: str, temperature: float = 0.8, history: list
     """Shared Gemini call for all counter-party agents."""
     client = _get_client()
     # Use flash model for counter-party responses — fast, non-thinking, sufficient for dialogue
-    model_name = os.getenv("SIM_LLM_MODEL", "gemini-2.5-flash")
+    model_name = os.getenv("SIM_LLM_MODEL", os.getenv("LLM_MODEL", "gemini-2.5-pro"))
     if client is None:
         return "[Gemini unavailable — using placeholder response]"
 
@@ -55,23 +55,15 @@ def _call_gemini(system: str, user: str, temperature: float = 0.8, history: list
         full_system = f"{system}\n\nConversation so far:\n" + "\n".join(history_lines)
 
     try:
-        from agent.token_logger import log_call, extract_token_counts
         response = client.models.generate_content(
             model=model_name,
             contents=user,
             config={"system_instruction": full_system, "temperature": temperature, "max_output_tokens": 2048},
         )
-        _inp, _out = extract_token_counts(response)
-        log_call(model_name, "CounterAgent", _inp, _out)
         text = response.text
         if text is None:
             try:
-                for part in response.candidates[0].content.parts:
-                    if getattr(part, 'thought', False):
-                        continue
-                    if part.text:
-                        text = part.text
-                        break
+                text = response.candidates[0].content.parts[0].text
             except Exception:
                 text = ""
         return (text or "").strip() or "[Agent is thinking...]"

@@ -58,7 +58,7 @@ No preamble, no markdown — pure JSON array."""
 
 class ScenarioQuestionnaireGenerator:
     def __init__(self):
-        self.model_name = os.getenv("LLM_MODEL", "gemini-3.5-flash")
+        self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-pro")
         self._project = os.getenv("VERTEX_PROJECT", "ai-ml-integrations")
         self._location = os.getenv("VERTEX_LOCATION", "us-central1")
         self.client = None

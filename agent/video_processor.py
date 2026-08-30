@@ -3,27 +3,13 @@ Video Processor Module
 Handles extracting frames and audio from the input video.
 """
 
+import cv2
 import os
 import numpy as np
-
-try:
-    import cv2
-    _CV2_AVAILABLE = True
-except Exception as _cv2_err:
-    cv2 = None
-    _CV2_AVAILABLE = False
-    import logging
-    logging.getLogger(__name__).warning(f"[VideoProcessor] cv2 unavailable: {_cv2_err}")
-
 try:
     from moviepy import VideoFileClip  # moviepy v2.x
 except ImportError:
-    try:
-        from moviepy.editor import VideoFileClip  # moviepy v1.x fallback
-    except Exception as _moviepy_err:
-        VideoFileClip = None
-        import logging
-        logging.getLogger(__name__).warning(f"[VideoProcessor] moviepy unavailable: {_moviepy_err}")
+    from moviepy.editor import VideoFileClip  # moviepy v1.x fallback
 
 
 class VideoProcessor:
@@ -65,21 +51,7 @@ class VideoProcessor:
         Returns:
             List of (frame_index, frame_image) tuples.
         """
-        return list(self.iter_frames())
-
-    def get_sampled_frame_count(self) -> int:
-        """Return the estimated number of sampled frames for this video."""
-        if self.frame_sample_rate <= 0:
-            return self.total_frames
-        return max(1, (self.total_frames + self.frame_sample_rate - 1) // self.frame_sample_rate)
-
-    def iter_frames(self):
-        """
-        Lazily iterate sampled frames from the video.
-
-        Yields:
-            Tuples of (frame_index, frame_image).
-        """
+        frames = []
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         frame_idx = 0
 
@@ -88,8 +60,10 @@ class VideoProcessor:
             if not ret:
                 break
             if frame_idx % self.frame_sample_rate == 0:
-                yield frame_idx, frame
+                frames.append((frame_idx, frame))
             frame_idx += 1
+
+        return frames
 
     def extract_audio(self, output_path: str = "output/audio.wav") -> str | None:
         """
@@ -101,9 +75,7 @@ class VideoProcessor:
         Returns:
             Path to the extracted audio file, or None if no audio.
         """
-        dir_name = os.path.dirname(output_path)
-        if dir_name:
-            os.makedirs(dir_name, exist_ok=True)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         try:
             clip = VideoFileClip(self.video_path)
             if clip.audio is None:
