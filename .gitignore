@@ -33,4 +33,8 @@ output/
 # External repos (too large)
 external_repos/
 
+.env
+*.json.key
+gcp_service*.json
+
 # Secrets already excluded via .env above
