@@ -662,6 +662,7 @@ class FailureClusterAnalyzer:
         )
 
         try:
+            from agent.token_logger import extract_token_counts, log_call
             response = self._gemini.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
@@ -672,6 +673,8 @@ class FailureClusterAnalyzer:
                     "thinking_config": {"thinking_budget": 1024},
                 },
             )
+            input_tokens, output_tokens = extract_token_counts(response)
+            log_call(self.model_name, "FailureClusterAnalyzer/direct", input_tokens, output_tokens)
             text = response.text.strip()
             for prefix in ("```json", "```", "json"):
                 if text.startswith(prefix):

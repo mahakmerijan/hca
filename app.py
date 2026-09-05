@@ -318,8 +318,12 @@ def _merge_video_analyses(analyses: list) -> dict:
 
 def _run_analysis(job_id: str, video_path: str):
     """Background worker — runs full analysis pipeline then Gemini counselling."""
+    from agent.token_logger import run_context, track_stage
+
     user_context = user_contexts.get(job_id)
     audio_tmp_path = None
+    telemetry_run = run_context(job_id, "video_analysis")
+    telemetry_run.__enter__()
     try:
         jobs[job_id]["status"] = "processing"
         jobs[job_id]["progress"] = "Loading video…"
@@ -331,40 +335,45 @@ def _run_analysis(job_id: str, video_path: str):
 
         # Step 1 – load video
         jobs[job_id]["progress"] = "Loading video…"
-        agent.video_processor = __import__(
-            "agent.video_processor", fromlist=["VideoProcessor"]
-        ).VideoProcessor(video_path, agent.frame_sample_rate)
-        agent.results["video_info"] = agent.video_processor.get_video_info()
+        with track_stage("video_load", "OpenCV", "non_llm"):
+            agent.video_processor = __import__(
+                "agent.video_processor", fromlist=["VideoProcessor"]
+            ).VideoProcessor(video_path, agent.frame_sample_rate)
+            agent.results["video_info"] = agent.video_processor.get_video_info()
 
         # Step 2 – extract all sampled frames once (reused by steps 4 & 5)
         jobs[job_id]["progress"] = "Extracting video frames…"
-        frames = agent.video_processor.extract_frames()
+        with track_stage("frame_extraction", "OpenCV", "non_llm"):
+            frames = agent.video_processor.extract_frames()
 
         # Step 3 – extract audio into a temp file
         jobs[job_id]["progress"] = "Extracting audio…"
         audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
         audio_tmp_path = audio_tmp.name
         audio_tmp.close()
-        audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
+        with track_stage("audio_extraction", "MoviePy", "non_llm"):
+            audio_path_result = agent.video_processor.extract_audio(audio_tmp_path)
 
         # Step 4 – facial expressions via DeepFace
         jobs[job_id]["progress"] = "Analysing facial expressions…"
         from agent.analyzers.facial_expression import FacialExpressionAnalyzer
-        agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
-        for idx, frame in frames:
-            agent.facial_analyzer.analyze_frame(frame, idx)
-        agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
+        with track_stage("facial_expression", "DeepFace", "non_llm", {"frames": len(frames)}):
+            agent.facial_analyzer = FacialExpressionAnalyzer(agent.face_confidence)
+            for idx, frame in frames:
+                agent.facial_analyzer.analyze_frame(frame, idx)
+            agent.results["facial_analysis"] = agent.facial_analyzer.get_summary()
         agent.facial_analyzer = None
         gc.collect()
 
         # Step 5 – body language via MediaPipe pose + hand
         jobs[job_id]["progress"] = "Analysing body language & posture…"
         from agent.analyzers.body_language import BodyLanguageAnalyzer
-        agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
-        for idx, frame in frames:
-            agent.body_analyzer.analyze_frame(frame, idx)
-        agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
-        agent.body_analyzer.release()
+        with track_stage("body_language", "MediaPipe Pose and Hand Landmarkers", "non_llm"):
+            agent.body_analyzer = BodyLanguageAnalyzer(agent.pose_confidence)
+            for idx, frame in frames:
+                agent.body_analyzer.analyze_frame(frame, idx)
+            agent.results["body_language_analysis"] = agent.body_analyzer.get_summary()
+            agent.body_analyzer.release()
         agent.body_analyzer = None
         frames = None
         gc.collect()
@@ -373,23 +382,26 @@ def _run_analysis(job_id: str, video_path: str):
         jobs[job_id]["progress"] = "Analysing voice & speech patterns…"
         from agent.analyzers.voice_speech import VoiceSpeechAnalyzer
         agent.voice_analyzer = VoiceSpeechAnalyzer(agent.audio_segment_duration)
-        if audio_path_result:
-            agent.voice_analyzer.run_full_analysis(audio_path_result)
-        agent.results["voice_speech_analysis"] = agent.voice_analyzer.get_summary()
+        with track_stage("voice_speech", "Librosa and Google Speech Recognition", "non_llm"):
+            if audio_path_result:
+                agent.voice_analyzer.run_full_analysis(audio_path_result)
+            agent.results["voice_speech_analysis"] = agent.voice_analyzer.get_summary()
         agent.voice_analyzer = None
         gc.collect()
 
         # Step 7 – compute weighted predictions & basic profile
         jobs[job_id]["progress"] = "Computing predictions…"
-        agent._compute_final_predictions()
-        agent._build_behavioral_profile()
+        with track_stage("prediction_scoring", "rule_based_weighted_scoring", "non_llm"):
+            agent._compute_final_predictions()
+            agent._build_behavioral_profile()
 
         # Step 8 – Gemini AI Counsellor
         jobs[job_id]["progress"] = "🧠 AI Counsellor is analysing your behaviour…"
-        if gemini_counsellor is not None:
-            counselling = gemini_counsellor.generate_counselling(agent.results, user_context)
-        else:
-            counselling = {"error": "AI counsellor unavailable at startup"}
+        with track_stage("counselling", "Gemini", "llm"):
+            if gemini_counsellor is not None:
+                counselling = gemini_counsellor.generate_counselling(agent.results, user_context)
+            else:
+                counselling = {"error": "AI counsellor unavailable at startup"}
         agent.results["counselling"] = counselling
 
         # Cleanup video processor (vision/voice analyzers already released above)
@@ -423,6 +435,7 @@ def _run_analysis(job_id: str, video_path: str):
                     os.unlink(tmp_path)
                 except OSError:
                     pass
+        telemetry_run.__exit__(None, None, None)
 
 
 # ──────────────────────────── Routes ────────────────────────────
@@ -910,13 +923,15 @@ def analysis_run(sim_id):
         if not video_analysis:
             video_analysis = twin.get("video_analysis", {})
 
-    result = analysis_svc.run_analysis(
-        sim_id=sim_id,
-        simulation_results=sim_results,
-        user_id=request.user_id,
-        twin_persona=twin.get("persona", {}) if twin else {},
-        video_analysis=video_analysis,
-    )
+    from agent.token_logger import run_context
+    with run_context(f"analysis:{sim_id}", "post_simulation_analysis", request.user_id):
+        result = analysis_svc.run_analysis(
+            sim_id=sim_id,
+            simulation_results=sim_results,
+            user_id=request.user_id,
+            twin_persona=twin.get("persona", {}) if twin else {},
+            video_analysis=video_analysis,
+        )
     result["conversation_gists"] = _build_conversation_gists(sim_results, limit=5)
     return jsonify(result)
 
@@ -940,6 +955,14 @@ def user_insights(user_id):
         return jsonify({"error": "Forbidden"}), 403
     _, _, _, analysis_svc = _services()
     return jsonify(analysis_svc.get_insights(user_id))
+
+
+@app.route("/admin/runs/<run_id>/telemetry", methods=["GET"])
+@require_auth
+def run_telemetry(run_id):
+    """Return the complete local model, token, duration, and memory trace for one run."""
+    from agent.token_logger import get_run_telemetry
+    return jsonify({"run_id": run_id, "events": get_run_telemetry(run_id)})
 
 
 # ══════════════════════════════════════════════════════════════════

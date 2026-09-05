@@ -40,7 +40,22 @@ EOF
 fi
 
 # 5. Create output dirs
-mkdir -p output uploads logs
+install -d -m 0750 output uploads logs /var/log/hca
+chown -R root:root logs /var/log/hca
+
+# Keep detailed per-run telemetry separate from Supervisor output and bounded on disk.
+cat > /etc/logrotate.d/hca-telemetry << 'EOF'
+/opt/hca/logs/token_usage.jsonl {
+  daily
+  rotate 30
+  maxsize 100M
+  compress
+  missingok
+  notifempty
+  copytruncate
+  create 0640 root root
+}
+EOF
 
 # 6. Supervisor config to keep Flask running
 cat > /etc/supervisor/conf.d/hca.conf << 'EOF'
@@ -52,7 +67,7 @@ autostart=true
 autorestart=true
 stderr_logfile=/var/log/hca.err.log
 stdout_logfile=/var/log/hca.out.log
-environment=PYTHONUNBUFFERED="1"
+environment=PYTHONUNBUFFERED="1",HCA_TELEMETRY_LOG_DIR="/opt/hca/logs"
 EOF
 
 # 7. Nginx reverse proxy (port 80 → Flask 5004)
@@ -83,4 +98,5 @@ echo ""
 echo "✅ Deployment complete!"
 echo "   App running at: http://169.58.250.61"
 echo "   Logs: tail -f /var/log/hca.out.log"
+echo "   Run telemetry: tail -f /opt/hca/logs/token_usage.jsonl"
 echo "   Edit credentials: nano /opt/hca/.env"

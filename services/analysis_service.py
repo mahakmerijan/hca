@@ -20,6 +20,7 @@ from agent.feedback.cluster_analyzer import FailureClusterAnalyzer
 from agent.feedback.feedback_generator import FeedbackGenerator
 from agent.feedback.memory_manager import get_memory_manager
 from agent.memory.redis_cache import RedisCache
+from agent.token_logger import get_current_run_context, run_context, track_stage
 
 # In-memory fallback
 _analyses: Dict[str, dict] = {}
@@ -89,21 +90,29 @@ class AnalysisService:
         session_id  = self._memory.new_thread_id()
 
         # Step 1: Cluster analysis (blocking — feedback depends on it)
-        cluster_report = self._analyzer.analyze(
-            simulation_results=simulation_results,
-            user_id=user_id,
-            session_id=session_id,
-            video_analysis=video_analysis or {},
-        )
+        with track_stage("failure_cluster_analysis", "Gemini / LangGraph", "llm"):
+            cluster_report = self._analyzer.analyze(
+                simulation_results=simulation_results,
+                user_id=user_id,
+                session_id=session_id,
+                video_analysis=video_analysis or {},
+            )
 
         # Step 2: Feedback generation — runs concurrently with _save_analysis
         # Both can start immediately since feedback only needs cluster_report
+        telemetry_context = get_current_run_context()
+
+        def generate_feedback():
+            with run_context(
+                telemetry_context.get("run_id", ""),
+                telemetry_context.get("run_type", "post_simulation_analysis"),
+                telemetry_context.get("user_id", user_id),
+            ):
+                with track_stage("feedback_generation", "Gemini", "llm"):
+                    return self._generator.generate(cluster_report, twin_persona)
+
         with ThreadPoolExecutor(max_workers=2) as ex:
-            f_feedback = ex.submit(
-                self._generator.generate,
-                cluster_report,
-                twin_persona,
-            )
+            f_feedback = ex.submit(generate_feedback)
             # Pre-build partial doc so saves can start right away
             analysis_id_val = analysis_id
             # Wait for feedback (the only blocking dep for the response)

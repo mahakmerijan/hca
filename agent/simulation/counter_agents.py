@@ -55,11 +55,14 @@ def _call_gemini(system: str, user: str, temperature: float = 0.8, history: list
         full_system = f"{system}\n\nConversation so far:\n" + "\n".join(history_lines)
 
     try:
+        from agent.token_logger import extract_token_counts, log_call
         response = client.models.generate_content(
             model=model_name,
             contents=user,
             config={"system_instruction": full_system, "temperature": temperature, "max_output_tokens": 2048},
         )
+        input_tokens, output_tokens = extract_token_counts(response)
+        log_call(model_name, "SimulationLoop/counterparty", input_tokens, output_tokens)
         text = response.text
         if text is None:
             try:

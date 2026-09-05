@@ -111,11 +111,14 @@ class RefereeAgent:
         )
 
         try:
+            from agent.token_logger import extract_token_counts, log_call
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
                 config={"system_instruction": REFEREE_SYSTEM_PROMPT, "temperature": 0.3, "max_output_tokens": 2048},
             )
+            input_tokens, output_tokens = extract_token_counts(response)
+            log_call(self.model_name, "SimulationLoop/referee", input_tokens, output_tokens)
             raw = response.text
             if raw is None:
                 try:

@@ -126,6 +126,7 @@ class FeedbackGenerator:
         )
 
         try:
+            from agent.token_logger import extract_token_counts, log_call
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=user_prompt,
@@ -136,6 +137,8 @@ class FeedbackGenerator:
                     "thinking_config": {"thinking_budget": 1024},
                 },
             )
+            input_tokens, output_tokens = extract_token_counts(response)
+            log_call(self.model_name, "FeedbackGenerator", input_tokens, output_tokens)
             text = response.text.strip()
             if text.startswith("```"):
                 text = "\n".join(text.split("\n")[1:])

@@ -9,13 +9,21 @@ Also keeps an in-memory daily summary accessible via get_summary().
 import json
 import os
 import threading
+import time
+import tracemalloc
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
-_LOG_DIR = Path(os.path.dirname(__file__)).parent / "logs"
+_LOG_DIR = Path(os.getenv("HCA_TELEMETRY_LOG_DIR", Path(os.path.dirname(__file__)).parent / "logs"))
 _LOG_FILE = _LOG_DIR / "token_usage.jsonl"
 _lock = threading.Lock()
+_run_context: ContextVar[dict] = ContextVar("run_context", default={})
+
+if not tracemalloc.is_tracing():
+    tracemalloc.start(25)
 
 # In-memory daily totals: { "2026-07-01": {"input": int, "output": int, "calls": int, "cost_usd": float} }
 _daily: dict = {}
@@ -30,6 +38,104 @@ _PRICING = {
 
 def _ensure_log_dir():
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _memory_snapshot() -> dict:
+    """Return local-process memory measurements without external dependencies."""
+    current, peak = tracemalloc.get_traced_memory()
+    try:
+        import resource
+        peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # macOS reports bytes; Linux reports KiB.
+        if os.uname().sysname != "Darwin":
+            peak_rss *= 1024
+    except Exception:
+        peak_rss = 0
+    return {
+        "python_allocated_bytes": current,
+        "python_peak_bytes": peak,
+        "process_peak_rss_bytes": peak_rss,
+    }
+
+
+def _memory_delta(before: dict, after: dict) -> dict:
+    return {
+        "python_allocated_delta_bytes": after["python_allocated_bytes"] - before["python_allocated_bytes"],
+        "process_peak_rss_delta_bytes": after["process_peak_rss_bytes"] - before["process_peak_rss_bytes"],
+    }
+
+
+def _append_record(record: dict) -> dict:
+    _ensure_log_dir()
+    with _lock:
+        try:
+            with open(_LOG_FILE, "a") as log_file:
+                log_file.write(json.dumps(record, default=str) + "\n")
+        except Exception as exc:
+            print(f"[TokenLogger] Write error: {exc}")
+    return record
+
+
+@contextmanager
+def run_context(run_id: str, run_type: str, user_id: str = ""):
+    """Attach a run identity to every telemetry record on the current thread."""
+    context = {"run_id": run_id, "run_type": run_type, "user_id": user_id}
+    token = _run_context.set(context)
+    _append_record({
+        "_type": "run_started",
+        "ts": datetime.utcnow().isoformat() + "Z",
+        **context,
+        **_memory_snapshot(),
+    })
+    try:
+        yield
+    finally:
+        _append_record({
+            "_type": "run_finished",
+            "ts": datetime.utcnow().isoformat() + "Z",
+            **context,
+            **_memory_snapshot(),
+        })
+        _run_context.reset(token)
+
+
+@contextmanager
+def track_stage(component: str, model: str, model_kind: str, extra: Optional[dict] = None):
+    """Record duration and memory for a local model or processing stage."""
+    context = _run_context.get().copy()
+    started = time.perf_counter()
+    started_at = datetime.utcnow().isoformat() + "Z"
+    before = _memory_snapshot()
+    status = "completed"
+    error = ""
+    try:
+        yield
+    except Exception as exc:
+        status = "error"
+        error = str(exc)
+        raise
+    finally:
+        after = _memory_snapshot()
+        _append_record({
+            "_type": "model_stage",
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "started_at": started_at,
+            "ended_at": datetime.utcnow().isoformat() + "Z",
+            **context,
+            "component": component,
+            "model": model,
+            "model_kind": model_kind,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "status": status,
+            "error": error,
+            "memory_before": before,
+            "memory_after": after,
+            "memory_delta": _memory_delta(before, after),
+            **(extra or {}),
+        })
 
 
 def log_call(
@@ -54,6 +160,7 @@ def log_call(
         extra:         any additional fields to log
     """
     _ensure_log_dir()
+    context = _run_context.get()
 
     prices = _PRICING.get(model, {"input": 0.0, "output": 0.0})
     cost = (input_tokens / 1_000_000 * prices["input"] +
@@ -69,20 +176,17 @@ def log_call(
         "output_tokens": output_tokens,
         "total_tokens":  input_tokens + output_tokens,
         "cost_usd":      round(cost, 6),
-        "user_id":       user_id or "",
+        "user_id":       user_id or context.get("user_id", ""),
         "sim_id":        sim_id or "",
+        "run_id":        context.get("run_id", ""),
+        "run_type":      context.get("run_type", ""),
+        "model_kind":    "llm",
+        "memory":        _memory_snapshot(),
     }
     if extra:
         record.update(extra)
 
     with _lock:
-        # Append to JSONL log
-        try:
-            with open(_LOG_FILE, "a") as f:
-                f.write(json.dumps(record) + "\n")
-        except Exception as e:
-            print(f"[TokenLogger] Write error: {e}")
-
         # Update daily in-memory summary
         d = _daily.setdefault(today, {"input": 0, "output": 0, "calls": 0, "cost_usd": 0.0})
         d["input"]    += input_tokens
@@ -90,7 +194,7 @@ def log_call(
         d["calls"]    += 1
         d["cost_usd"] = round(d["cost_usd"] + cost, 6)
 
-    return record
+    return _append_record(record)
 
 
 def extract_token_counts(response) -> tuple[int, int]:
@@ -239,6 +343,28 @@ def get_run_summaries(limit: int = 20) -> list:
 
 def get_log_file_path() -> str:
     return str(_LOG_FILE)
+
+
+def get_run_telemetry(run_id: str) -> list[dict]:
+    """Return the complete local telemetry trace for exactly one run."""
+    events = []
+    try:
+        with open(_LOG_FILE) as log_file:
+            for line in log_file:
+                try:
+                    event = json.loads(line)
+                    if event.get("run_id") == run_id:
+                        events.append(event)
+                except json.JSONDecodeError:
+                    continue
+    except FileNotFoundError:
+        pass
+    return events
+
+
+def get_current_run_context() -> dict:
+    """Return a copy of the current thread's telemetry context for worker propagation."""
+    return _run_context.get().copy()
 
 
 def print_job_token_summary(job_id: str) -> None:

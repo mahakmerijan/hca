@@ -19,7 +19,7 @@ except ImportError:
 from agent.simulation.scenario_generator import ScenarioGenerator
 from agent.simulation.simulation_loop import SimulationLoop
 from agent.memory.redis_cache import RedisCache
-from agent.token_logger import log_run_summary
+from agent.token_logger import log_run_summary, run_context, track_stage
 
 # In-memory fallback
 _simulations: Dict[str, dict] = {}
@@ -166,6 +166,9 @@ class SimulationService:
         custom_persona: Optional[dict] = None,
     ):
         results = []
+        sim = self._load_simulation(sim_id) or {}
+        telemetry_run = run_context(sim_id, "simulation", sim.get("user_id", ""))
+        telemetry_run.__enter__()
 
         def on_progress(completed_count: int, total: int, last_result: dict):
             results.append(last_result)
@@ -196,12 +199,13 @@ class SimulationService:
             if mode in ("predefined", "both") and scenarios:
                 max_workers = int(os.getenv("SIM_MAX_WORKERS", "5"))
                 total = len(scenarios) + (1 if mode == "both" and custom_persona else 0)
-                self._loop.run_batch(
-                    scenarios,
-                    twin_persona=twin_persona,
-                    progress_callback=lambda c, t, r: on_progress(c, total, r),
-                    max_workers=max_workers,
-                )
+                with track_stage("simulation_batch", "Gemini multi-agent simulation", "llm", {"scenarios": len(scenarios)}):
+                    self._loop.run_batch(
+                        scenarios,
+                        twin_persona=twin_persona,
+                        progress_callback=lambda c, t, r: on_progress(c, total, r),
+                        max_workers=max_workers,
+                    )
 
             # Run custom persona simulation
             if mode in ("custom", "both") and custom_persona:
@@ -214,11 +218,12 @@ class SimulationService:
                 self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
 
                 print(f"[SimulationService] Starting custom persona simulation (50 turns)", flush=True)
-                custom_result = self._loop.run_custom_persona(
-                    custom_persona=custom_persona,
-                    twin_persona=twin_persona,
-                    max_turns=50,
-                )
+                with track_stage("custom_persona_simulation", "Gemini multi-agent simulation", "llm", {"max_turns": 50}):
+                    custom_result = self._loop.run_custom_persona(
+                        custom_persona=custom_persona,
+                        twin_persona=twin_persona,
+                        max_turns=50,
+                    )
                 sim = self._load_simulation(sim_id) or {}
                 sim["custom_result"] = custom_result
                 sim["completed"]     = predefined_done + 1
@@ -251,6 +256,8 @@ class SimulationService:
             self._cache.set(f"sim:active:{sim_id}", sim, ttl=3600)
             log_run_summary(run_type="simulation_error", sim_id=sim_id, user_id=sim.get("user_id"), started_at=sim.get("started_at"))
             print(f"[SimulationService] Simulation {sim_id} error: {e}\n{tb}", flush=True)
+        finally:
+            telemetry_run.__exit__(None, None, None)
 
     # ── Storage ───────────────────────────────────────────────────
 

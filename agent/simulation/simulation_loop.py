@@ -101,6 +101,7 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str, conversat
     user = f"Stage: {stage}\n{context}\n\nRespond naturally as yourself in 2-3 sentences:"
 
     try:
+        from agent.token_logger import extract_token_counts, log_call
         response = client.models.generate_content(
             model=model_name,
             contents=user,
@@ -110,6 +111,8 @@ def _build_twin_response(twin_persona: dict, context: str, stage: str, conversat
                 "max_output_tokens": 2048,
             },
         )
+        input_tokens, output_tokens = extract_token_counts(response)
+        log_call(model_name, "SimulationLoop/twin", input_tokens, output_tokens)
         text = response.text
         if text is None:
             # Log the actual finish reason to diagnose why Gemini returns None
@@ -156,11 +159,14 @@ def _build_custom_agent_response(custom_persona: dict, twin_response: str, stage
                 f"They said: \"{twin_response}\"\nRespond in character (2-3 sentences):")
 
     try:
+        from agent.token_logger import extract_token_counts, log_call
         response = client.models.generate_content(
             model=model_name,
             contents=user,
             config={"system_instruction": system, "temperature": 0.75, "max_output_tokens": 2048},
         )
+        input_tokens, output_tokens = extract_token_counts(response)
+        log_call(model_name, "SimulationLoop/custom_counterparty", input_tokens, output_tokens)
         text = response.text
         if text is None:
             try:
