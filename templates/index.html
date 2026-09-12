@@ -30,12 +30,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 @keyframes slideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 .slide-up{animation:slideUp .5s ease forwards;opacity:0}
 
-/* ─── Mode Nav ─── */
-#mode-nav{position:sticky;top:0;z-index:100;width:100%;background:rgba(11,13,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:0}
-.mode-btn{padding:14px 36px;font-size:.92rem;font-weight:700;border:none;background:transparent;color:var(--muted);cursor:pointer;transition:.2s;border-bottom:3px solid transparent;letter-spacing:.2px}
-.mode-btn:hover{color:var(--white)}
-.mode-btn.active{color:var(--accent2);border-bottom-color:var(--accent)}
-
 /* ─── Header ─── */
 header{width:100%;max-width:960px;text-align:center;padding:52px 24px 8px}
 header h1{font-size:1.9rem;font-weight:800;color:var(--white);letter-spacing:-.3px}
@@ -258,8 +252,23 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 .gate-brand .g-icon{font-size:2.8rem;margin-bottom:8px}
 .gate-brand h1{font-size:1.35rem;font-weight:800;color:#f0f2f8;letter-spacing:-.2px}
 .gate-brand p{color:#7a809a;font-size:.83rem;margin-top:6px}
-#btn-logout{display:none;position:absolute;right:16px;padding:8px 18px;background:transparent;border:1px solid #252a3a;color:#7a809a;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s}
+#btn-logout{display:none;position:fixed;top:16px;right:16px;z-index:10000;padding:8px 18px;background:#13161f;border:1px solid #252a3a;color:#7a809a;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s}
 #btn-logout:hover{border-color:#f87171;color:#f87171}
+
+/* ─── Welcome / Onboarding Overlays ─── */
+.welcome-overlay{position:fixed;inset:0;z-index:9990;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+.menu-frame{position:relative;width:100%;max-width:900px}
+.menu-img{width:100%;height:auto;display:block;border-radius:16px;user-select:none;-webkit-user-drag:none}
+.menu-hotspot{position:absolute;border:none;background:transparent;cursor:pointer;border-radius:16px;transition:.2s}
+.menu-hotspot::before{content:'';position:absolute;inset:8%;border-radius:22px;transition:.2s;pointer-events:none}
+.menu-hotspot:hover::before,.menu-hotspot:focus-visible::before{background:rgba(255,255,255,.10);box-shadow:0 0 0 3px rgba(255,255,255,.5) inset}
+.menu-hotspot:focus-visible{outline:none}
+.menu-hotspot-left{left:38.3%;top:56.5%;width:24.9%;height:26%}
+.menu-hotspot-right{left:66.3%;top:56.5%;width:24.9%;height:26%}
+.welcome-hint{color:#7a809a;font-size:.85rem;letter-spacing:.3px}
+.welcome-video{max-width:92vw;max-height:80vh;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.7)}
+.welcome-skip{padding:10px 22px;background:transparent;border:1px solid #333a50;color:#c8cce0;border-radius:10px;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s}
+.welcome-skip:hover{border-color:#7c6af6;color:#a599ff}
 </style>
 </head>
 <body>
@@ -292,14 +301,33 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
   </div>
 </div>
 
-<!-- ═══ STICKY MODE SWITCHER ═══ -->
-<nav id="mode-nav">
-  <button class="mode-btn active" id="btn-video" onclick="switchMode('video')">🎦 Video Analysis</button>
-  <button class="mode-btn" id="btn-twin" onclick="switchMode('twin')">🤖 Digital Twin</button>
-  <button id="btn-logout" onclick="logout()">Log Out</button>
-</nav>
+<!-- ═══ WELCOME ONBOARDING OVERLAYS ═══ -->
+<div id="welcome-step1" class="welcome-overlay" onclick="advanceWelcomeStep1()">
+  <div class="menu-frame"><img src="/static/img/vyakti-intro.jpg" alt="Welcome" class="menu-img"></div>
+  <div class="welcome-hint">Tap anywhere to continue</div>
+</div>
 
-<div id="mode-video">
+<div id="welcome-step2" class="welcome-overlay">
+  <div class="menu-frame">
+    <img src="/static/img/vyakti-menu.png" alt="So, what do you want to do today?" class="menu-img">
+    <button class="menu-hotspot menu-hotspot-left" onclick="chooseVideoAnalysis()" aria-label="Analyze my video"></button>
+    <button class="menu-hotspot menu-hotspot-right" onclick="chooseDigitalTwin()" aria-label="Talk with the Digital Twin"></button>
+  </div>
+</div>
+
+<div id="twin-intro-overlay" class="welcome-overlay">
+  <video id="twin-intro-video" class="welcome-video" src="/static/video/digital-twin-intro.mp4" playsinline onended="finishTwinIntroVideo()"></video>
+  <button class="welcome-skip" onclick="finishTwinIntroVideo()">Skip ▶</button>
+</div>
+
+<div id="twin-intro-image" class="welcome-overlay" onclick="advanceTwinIntroImage()">
+  <div class="menu-frame"><img src="/static/img/vyakti-twin-intro.png" alt="Let me ask you some questions first" class="menu-img"></div>
+  <div class="welcome-hint">Tap anywhere to continue</div>
+</div>
+
+<button id="btn-logout" onclick="logout()">Log Out</button>
+
+<div id="mode-video" style="display:none">
 <header>
   <h1>🧠 Your Personal <span class="ai">AI Behaviour Counsellor</span></h1>
   <p>Upload a video of yourself — our AI will analyse your facial expressions, body language &amp; speech, then give you personalised coaching to help you succeed.</p>
@@ -892,6 +920,13 @@ function resetUI(){
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,106,246,.35)}
 .btn-outline{padding:10px 22px;background:transparent;border:1px solid #7c6af6;color:#a599ff;border-radius:10px;cursor:pointer;font-size:.88rem;font-weight:600;transition:.2s}
 .btn-outline:hover{background:rgba(124,106,246,.12)}
+.btn-primary:disabled,.btn-outline:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.voice-input-wrap{position:relative}
+.voice-input-wrap textarea{padding-right:44px !important}
+.mic-btn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:1px solid #333a50;background:#13161f;color:#a599ff;font-size:.85rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;padding:0}
+.mic-btn:hover{border-color:#7c6af6;background:rgba(124,106,246,.12)}
+.mic-btn.listening{background:#f87171;border-color:#f87171;color:#fff;animation:mic-pulse 1.2s infinite}
+@keyframes mic-pulse{0%{box-shadow:0 0 0 0 rgba(248,113,113,.5)}70%{box-shadow:0 0 0 8px rgba(248,113,113,0)}100%{box-shadow:0 0 0 0 rgba(248,113,113,0)}}
 .auth-msg{font-size:.82rem;margin-top:12px;text-align:center;min-height:20px}
 .auth-msg.ok{color:#2dd4a8}.auth-msg.err{color:#f87171}
 .twin-token{display:none;background:#0b0d13;border:1px solid #2dd4a8;border-radius:8px;padding:10px 14px;font-size:.78rem;color:#2dd4a8;word-break:break-all;margin-top:14px}
@@ -1045,7 +1080,7 @@ function resetUI(){
         <p style="font-size:.8rem;color:#7a809a;line-height:1.7">💡 <strong style="color:#a0a5bb">Tips for best results:</strong> Record in good lighting · Face the camera directly · Speak for at least 60 seconds · Use a neutral background</p>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn-primary" style="width:auto;margin-top:0" onclick="createTwin()">🚀 Create My Twin</button>
+        <button class="btn-primary" id="btn-create-twin" style="width:auto;margin-top:0" onclick="createTwin()">🚀 Create My Twin</button>
       </div>
       <div class="auth-msg" id="twin-video-msg" style="margin-top:10px"></div>
     </div>
@@ -1064,7 +1099,7 @@ function resetUI(){
           Your Digital Twin will have a real conversation with the Digital Twin of the <strong style="color:#a599ff">specific person you described</strong> in the questionnaire — built from your scenario description, goals, and their known communication style.
         </p>
         <div id="sim-scenario-preview" style="font-size:.82rem;color:#7a809a;font-style:italic;margin-bottom:14px;min-height:18px"></div>
-        <button class="btn-primary" style="max-width:320px;margin-top:0" onclick="startTargetedSimulation()">▶ Simulate with That Person</button>
+        <button class="btn-primary" id="btn-start-targeted-sim" style="max-width:320px;margin-top:0" onclick="startTargetedSimulation()">▶ Simulate with That Person</button>
         <div class="auth-msg" id="targeted-sim-msg" style="margin-top:10px"></div>
       </div>
 
@@ -1072,7 +1107,7 @@ function resetUI(){
       <div style="background:#0b0d13;border:1px solid #2a3045;border-radius:12px;padding:20px 22px">
         <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#7a809a;margin-bottom:8px">📊 Benchmark (10 Scenarios)</div>
         <p style="color:#7a809a;font-size:.85rem;margin-bottom:14px">Run your twin through 10 generic social scenarios — 3 job interviews, 3 investor pitches, 4 dating conversations — to get an overall behavioural score.</p>
-        <button class="btn-outline" onclick="startSimulation()">▶ Start 10 Simulations</button>
+        <button class="btn-outline" id="btn-start-benchmark-sim" onclick="startSimulation()">▶ Start 10 Simulations</button>
         <div class="auth-msg" id="sim-msg" style="margin-top:10px"></div>
       </div>
 
@@ -1081,7 +1116,10 @@ function resetUI(){
           <span>Progress</span><span id="sim-count">0 / 10</span>
         </div>
         <div class="sim-bar-outer"><div class="sim-bar-inner" id="sim-bar"></div></div>
-        <div id="sim-status-txt" style="color:#a599ff;font-size:.85rem;font-weight:600;margin-top:8px">Initialising…</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px">
+          <div id="sim-status-txt" style="color:#a599ff;font-size:.85rem;font-weight:600">Initialising…</div>
+          <button id="btn-stop-sim" onclick="stopSimulation()" style="display:none;flex-shrink:0;background:#3a1620;color:#f87171;border:1px solid #f87171;border-radius:8px;padding:6px 14px;font-size:.8rem;font-weight:700;cursor:pointer">⏹ Stop Simulation</button>
+        </div>
         <div class="stats-grid" id="sim-live-stats"></div>
       </div>
     </div>
@@ -1208,6 +1246,7 @@ async function doLogin(){
   if(d.error){setAuthMsg(d.error,'err');return;}
   saveAuthSession(d);
   setAuthMsg('✓ Logged in!','ok');
+  loadTwinForm();
 }
 function saveAuthSession(d){
   twinAuthToken=d.token;twinUserId=d.user_id;
@@ -1217,6 +1256,11 @@ function saveAuthSession(d){
 function setAuthMsg(msg,cls){
   const el=document.getElementById('auth-msg');
   el.textContent=msg;el.className='auth-msg '+(cls||'');
+}
+function handleExpiredAuth(){
+  logout();
+  gateSwitchToLogin();
+  gateSetMsg('Your session expired. Please log in again.','err');
 }
 
 // ── Questionnaire ──────────────────────────────────────────────
@@ -1234,6 +1278,7 @@ async function generateScenarioQuestions(){
       body:JSON.stringify({scenario_description:desc})
     });
     const d=await r.json();
+    if(r.status===401){handleExpiredAuth();return;}
     if(d.error){statusEl.textContent='Error: '+d.error;statusEl.style.color='#f87171';return;}
     const questions=d.questions||[];
     statusEl.textContent='✓ '+questions.length+' questions generated!';statusEl.style.color='#2dd4a8';
@@ -1259,15 +1304,18 @@ function renderScenarioQuestions(questions){
       if(minL||maxL) html+=`<div class="q-scale-labels"><span>${minL}</span><span>${maxL}</span></div>`;
       html+='</div>';
     }else if(q.type==='single_select'||q.type==='multi_select'){
-      const multi=q.type==='multi_select';
-      if(multi) html+='<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>';
+      const multi=true;
+      html+='<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>';
       html+='<div class="q-chips">';
-      (q.options||[]).forEach(opt=>html+=`<button type="button" onclick="toggleChip('${q.id}','${opt}',this,${multi})">${opt}</button>`);
+      (q.options||[]).forEach(rawOpt=>{
+        const opt=optLabel(rawOpt);
+        html+=`<button type="button" onclick="toggleChip('${q.id}','${escapeAttr(opt)}',this,${multi})">${opt}</button>`;
+      });
       html+='</div>';
     }else if(q.type==='textarea'){
-      html+=`<textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value"></textarea>`;
+      html+=`<div class="voice-input-wrap"><textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value"></textarea><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
     }else if(q.type==='text'){
-      html+=`<input type="text" id="q-${q.id}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none">`;
+      html+=`<div class="voice-input-wrap"><input type="text" id="q-${q.id}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 44px 10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none;box-sizing:border-box"><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
     }
     html+='</div>';
   });
@@ -1275,17 +1323,63 @@ function renderScenarioQuestions(questions){
   cont.innerHTML=html;
 }
 
+let hasExistingTwin = false;
+let hasDraftLoaded = false;
+
+async function loadSavedAnswersIfAny(){
+  // Always reset first — a previous user's session in this same tab must never leak here.
+  hasExistingTwin = false;
+  hasDraftLoaded = false;
+  twinFormData = {};
+  if(!twinAuthToken) return;
+  try{
+    const r = await fetch('/twin/me', {headers:{'Authorization':'Bearer '+twinAuthToken}});
+    if(r.status===401){handleExpiredAuth();return;}
+    if(r.ok){
+      const twin = await r.json();
+      if(twin && twin.twin_id){
+        hasExistingTwin = true;
+        twinId = twin.twin_id;
+        localStorage.setItem('twinId', twinId);
+        if(twin.form_data) twinFormData = Object.assign({}, twin.form_data);
+        return;
+      }
+    }
+    // No full twin yet — check for in-progress draft answers instead.
+    const dr = await fetch('/twin/draft', {headers:{'Authorization':'Bearer '+twinAuthToken}});
+    if(dr.ok){
+      const draft = await dr.json();
+      if(draft && draft.form_data){
+        twinFormData = Object.assign({}, draft.form_data);
+        hasDraftLoaded = true;
+      }
+    }
+  }catch(e){ /* network hiccup — user can still fill the form fresh */ }
+}
+
 async function loadTwinForm(){
+  await loadSavedAnswersIfAny();
   if(!twinSchema){
     const r=await fetch('/twin/schema');
     twinSchema=await r.json();
   }
   renderTwinForm(twinSchema);
+  refreshCreateTwinButton();
+}
+function refreshCreateTwinButton(){
+  const btn = document.getElementById('btn-create-twin');
+  if(btn) btn.textContent = hasExistingTwin ? '💾 Save Changes' : '🚀 Create My Twin';
 }
 function renderTwinForm(schema){
   const cont=document.getElementById('twin-q-container');
   const total=schema.sections.reduce((s,sec)=>s+sec.questions.length,0);
-  let html=`<div class="q-progress"><span>📋 ${total} questions</span><span style="color:#7a809a;font-size:.79rem">Answer as many as possible for best accuracy</span></div>`;
+  let html='';
+  if(hasExistingTwin){
+    html+=`<div style="background:rgba(45,212,168,.08);border:1px solid rgba(45,212,168,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:.84rem;color:#2dd4a8">✓ Your previous answers are pre-filled below. Edit anything and click <strong>Save Changes</strong> to update your Digital Twin.</div>`;
+  } else if(hasDraftLoaded){
+    html+=`<div style="background:rgba(124,106,246,.08);border:1px solid rgba(124,106,246,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:.84rem;color:#a599ff">↻ Your saved draft has been restored — pick up where you left off.</div>`;
+  }
+  html+=`<div class="q-progress"><span>📋 ${total} questions</span><span style="color:#7a809a;font-size:.79rem">Answer as many as possible for best accuracy</span></div>`;
   schema.sections.forEach(sec=>{
     const icon=sec.icon||'📌';
     html+=`<div class="q-section">
@@ -1300,11 +1394,14 @@ function renderTwinForm(schema){
     sec.questions.forEach(q=>{
       const label=q.label||q.text||q.id;
       const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
+      const savedVal=twinFormData[q.id];
       html+=`<div class="q-item"><label>${label}${req}</label>`;
       if(q.type==='scale'){
+        const savedNum=(savedVal!==undefined&&savedVal!==null&&savedVal!=='')?Number(savedVal):null;
         html+=`<div class="q-scale-wrap"><div class="q-scale">`;
         for(let i=q.min||1;i<=(q.max||10);i++){
-          html+=`<button type="button" onclick="setScaleVal('${q.id}',${i},this)">${i}</button>`;
+          const sel=(savedNum===i)?' sel':'';
+          html+=`<button type="button" class="${sel.trim()}" onclick="setScaleVal('${q.id}',${i},this)">${i}</button>`;
         }
         html+=`</div>`;
         if(q.min_label||q.max_label){
@@ -1312,17 +1409,22 @@ function renderTwinForm(schema){
         }
         html+=`</div>`;
       } else if(q.type==='single_select'||q.type==='multi_select'){
-        const multi=q.type==='multi_select';
-        const hint=multi?`<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>`:'';
+        const multi=true;
+        const savedArr=Array.isArray(savedVal)?savedVal:(savedVal?[savedVal]:[]);
+        const hint=`<div style="font-size:.74rem;color:#7a809a;margin-bottom:8px">Select all that apply</div>`;
         html+=hint+`<div class="q-chips">`;
-        (q.options||[]).forEach(opt=>{
-          html+=`<button type="button" onclick="toggleChip('${q.id}','${opt}',this,${multi})">${opt}</button>`;
+        (q.options||[]).forEach(rawOpt=>{
+          const opt=optLabel(rawOpt);
+          const sel=savedArr.includes(opt)?' sel':'';
+          html+=`<button type="button" class="${sel.trim()}" onclick="toggleChip('${q.id}','${escapeAttr(opt)}',this,${multi})">${opt}</button>`;
         });
         html+=`</div>`;
       } else if(q.type==='textarea'){
-        html+=`<textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||'Write your answer here…'}" oninput="twinFormData['${q.id}']=this.value"></textarea>`;
+        const val=(savedVal!==undefined&&savedVal!==null)?escapeHtml(savedVal):'';
+        html+=`<div class="voice-input-wrap"><textarea id="q-${q.id}" rows="4" placeholder="${q.placeholder||'Write your answer here…'}" oninput="twinFormData['${q.id}']=this.value">${val}</textarea><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
       } else if(q.type==='text'){
-        html+=`<input type="text" id="q-${q.id}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none">`;
+        const val=(savedVal!==undefined&&savedVal!==null)?escapeHtml(savedVal):'';
+        html+=`<div class="voice-input-wrap"><input type="text" id="q-${q.id}" value="${val}" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value" style="width:100%;padding:10px 44px 10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none;box-sizing:border-box"><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
       }
       html+=`</div>`;
     });
@@ -1330,6 +1432,79 @@ function renderTwinForm(schema){
   });
   cont.innerHTML=html;
   document.getElementById('twin-q-nav').style.display='flex';
+}
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Voice-to-text input (Web Speech API) for free-text questions ──
+let _activeVoiceBtn = null;
+function startVoiceInput(qid, btn){
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!Recognition){
+    alert('Voice input is not supported in this browser. Please use Google Chrome or Microsoft Edge, or type your answer instead.');
+    return;
+  }
+  // Toggle off if this same button is already recording
+  if(_activeVoiceBtn === btn){
+    btn._recognition && btn._recognition.stop();
+    return;
+  }
+  // Only one field can record at a time — stop whichever is currently active
+  if(_activeVoiceBtn && _activeVoiceBtn._recognition){
+    _activeVoiceBtn._recognition.stop();
+  }
+
+  const fieldEl = document.getElementById('q-'+qid);
+  if(!fieldEl) return;
+  const baseText = fieldEl.value ? fieldEl.value.trim() + ' ' : '';
+
+  const recognition = new Recognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  let finalTranscript = '';
+  btn._recognition = recognition;
+  _activeVoiceBtn = btn;
+  btn.classList.add('listening');
+  btn.textContent = '⏹';
+  btn.title = 'Listening… click to stop';
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for(let i = event.resultIndex; i < event.results.length; i++){
+      const transcript = event.results[i][0].transcript;
+      if(event.results[i].isFinal) finalTranscript += transcript + ' ';
+      else interim += transcript;
+    }
+    fieldEl.value = baseText + finalTranscript + interim;
+    twinFormData[qid] = fieldEl.value;
+  };
+  recognition.onerror = (e) => {
+    console.warn('[VoiceInput] recognition error:', e.error);
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      alert('Microphone access was blocked. Please allow microphone permission and try again.');
+    }
+  };
+  recognition.onend = () => {
+    btn.classList.remove('listening');
+    btn.textContent = '🎤';
+    btn.title = 'Click to answer by voice';
+    fieldEl.value = fieldEl.value.trim();
+    twinFormData[qid] = fieldEl.value;
+    btn._recognition = null;
+    if(_activeVoiceBtn === btn) _activeVoiceBtn = null;
+  };
+  recognition.start();
+}
+function optLabel(rawOpt){
+  if(rawOpt&&typeof rawOpt==='object') return rawOpt.label||rawOpt.value||rawOpt.text||rawOpt.name||JSON.stringify(rawOpt);
+  return rawOpt;
+}
+function escapeAttr(s){
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
 function setScaleVal(qid,val,btn){
   twinFormData[qid]=val;
@@ -1349,10 +1524,29 @@ function toggleChip(qid,val,btn,multi){
     twinFormData[qid]=arr;
   }
 }
-function saveTwinDraft(){
+async function saveTwinDraft(){
+  if(!twinAuthToken){
+    document.getElementById('twin-create-msg').textContent='Log in first to save your progress.';
+    document.getElementById('twin-create-msg').className='auth-msg err';
+    return;
+  }
   localStorage.setItem('twinFormDraft',JSON.stringify(twinFormData));
-  document.getElementById('twin-create-msg').textContent='Draft saved locally.';
-  document.getElementById('twin-create-msg').className='auth-msg ok';
+  document.getElementById('twin-create-msg').textContent='Saving…';
+  document.getElementById('twin-create-msg').className='auth-msg';
+  try{
+    const r=await fetch('/twin/draft',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+      body:JSON.stringify({form_data:twinFormData})
+    });
+    if(r.status===401){handleExpiredAuth();return;}
+    if(!r.ok) throw new Error('save failed');
+    document.getElementById('twin-create-msg').textContent='✓ Draft saved — it will be here next time you log in.';
+    document.getElementById('twin-create-msg').className='auth-msg ok';
+  }catch(e){
+    document.getElementById('twin-create-msg').textContent='Could not save draft to your account (saved locally only). Check your connection and try again.';
+    document.getElementById('twin-create-msg').className='auth-msg err';
+  }
 }
 function saveFormAsPDF(){
   if(!twinSchema){alert('Load the questionnaire first.');return;}
@@ -1648,30 +1842,50 @@ async function createTwin(){
     return;
   }
 
-  // Require completed video analysis for embodied model
+  const isUpdate = hasExistingTwin && Boolean(twinId);
   const videoJobId = twinVideoJobId || localStorage.getItem('twinVideoJobId') || currentJobId || null;
-  if(!videoJobId){
-    setTwinStatus('Upload and analyze your video first, then create twin.','err');
-    return;
-  }
-  const st = await fetch('/status/'+videoJobId).then(r=>r.json()).catch(()=>({status:'error'}));
-  if(st.status!=='done'){
-    setTwinStatus('Video analysis is still running. Please wait for completion.','err');
-    return;
+
+  // First-time creation requires a completed video analysis for the embodied model.
+  // Edits to an existing twin reuse the previously analysed video automatically.
+  if(!isUpdate){
+    if(!videoJobId){
+      setTwinStatus('Upload and analyze your video first, then create twin.','err');
+      return;
+    }
+    const st = await fetch('/status/'+videoJobId).then(r=>r.json()).catch(()=>({status:'error'}));
+    if(st.status!=='done'){
+      setTwinStatus('Video analysis is still running. Please wait for completion.','err');
+      return;
+    }
   }
 
-  setTwinStatus('Creating your twin from questionnaire + video…');
-  const r=await fetch('/twin/create',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-    body:JSON.stringify({
-      form_data:twinFormData,
-      video_job_ids:twinVideoJobIds,
-      video_job_id:videoJobId,
-      scenario_description:(document.getElementById('scenario-desc-input')||{}).value||'',
-      scenario_answers:Object.fromEntries(Object.entries(twinFormData).filter(([k])=>k.startsWith('sq_')))
-    })
-  });
+  setTwinStatus(isUpdate ? 'Saving your updated answers…' : 'Creating your twin from questionnaire + video…');
+
+  let r;
+  if(isUpdate){
+    r=await fetch('/twin/update',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+      body:JSON.stringify({
+        twin_id:twinId,
+        form_data:twinFormData,
+        video_job_id:videoJobId||undefined
+      })
+    });
+  } else {
+    r=await fetch('/twin/create',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+      body:JSON.stringify({
+        form_data:twinFormData,
+        video_job_ids:twinVideoJobIds,
+        video_job_id:videoJobId,
+        scenario_description:(document.getElementById('scenario-desc-input')||{}).value||'',
+        scenario_answers:Object.fromEntries(Object.entries(twinFormData).filter(([k])=>k.startsWith('sq_')))
+      })
+    });
+  }
+  if(r.status===401){handleExpiredAuth();return;}
   const d=await r.json();
   if(d.error){
     setTwinStatus(d.error,'err');
@@ -1679,7 +1893,9 @@ async function createTwin(){
   }
   twinId=d.twin_id;
   localStorage.setItem('twinId',twinId);
-  setTwinStatus('✓ Twin created using both questionnaire and video context! Go to "Run Simulation".','ok');
+  hasExistingTwin=true;
+  refreshCreateTwinButton();
+  setTwinStatus(isUpdate ? '✓ Your answers have been updated!' : '✓ Twin created using both questionnaire and video context! Go to "Run Simulation".','ok');
 }
 
 // ── Simulation ─────────────────────────────────────────────────
@@ -1702,6 +1918,7 @@ function refreshSimPanel(){
 }
 async function startSimulation(){
   if(!twinAuthToken||!twinId){document.getElementById('sim-msg').textContent='Create a twin first.';return;}
+  if(simPollTimer){document.getElementById('sim-msg').textContent='A simulation is already running — please wait for it to finish or stop it first.';return;}
   document.getElementById('sim-msg').textContent='';
   document.getElementById('sim-progress-wrap').style.display='block';
   document.getElementById('sim-status-txt').textContent='Starting…';
@@ -1710,14 +1927,16 @@ async function startSimulation(){
   document.getElementById('scen-chat-box').innerHTML='';
   _lastRenderedScenario=0;_activeScenarioNum=null;
   Object.keys(_allScenarios).forEach(k=>delete _allScenarios[k]);
+  setSimButtonsRunning(true);
   const r=await fetch('/simulation/begin',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
     body:JSON.stringify({twin_id:twinId})
   });
   const d=await r.json();
-  if(d.error){document.getElementById('sim-msg').textContent=d.error;return;}
+  if(d.error){document.getElementById('sim-msg').textContent=d.error;setSimButtonsRunning(false);return;}
   currentSimId=d.sim_id;
+  if(d.already_running) document.getElementById('sim-msg').textContent='A simulation was already running for this twin — showing its live progress.';
   pollSimulation();
 }
 
@@ -1725,6 +1944,7 @@ let _customPersona = null;
 
 async function startTargetedSimulation(){
   if(!twinAuthToken||!twinId){document.getElementById('targeted-sim-msg').textContent='Create a twin first.';return;}
+  if(simPollTimer){document.getElementById('targeted-sim-msg').textContent='A simulation is already running — please wait for it to finish or stop it first.';return;}
   const desc=(document.getElementById('scenario-desc-input')||{}).value||'';
   if(!desc.trim()){
     document.getElementById('targeted-sim-msg').textContent='Please describe your scenario in the Questionnaire tab first (“Preparing for Something Specific?”).';
@@ -1738,6 +1958,7 @@ async function startTargetedSimulation(){
   document.getElementById('scen-chat-box').innerHTML='';
   _lastRenderedScenario=0;_activeScenarioNum=null;
   Object.keys(_allScenarios).forEach(k=>delete _allScenarios[k]);
+  setSimButtonsRunning(true);
   const pr=await fetch('/twin/custom-persona',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
@@ -1750,6 +1971,7 @@ async function startTargetedSimulation(){
   const persona=await pr.json();
   if(persona.error){
     document.getElementById('sim-status-txt').textContent='Failed to build their twin: '+persona.error;
+    setSimButtonsRunning(false);
     return;
   }
   _customPersona=persona;
@@ -1760,8 +1982,9 @@ async function startTargetedSimulation(){
     body:JSON.stringify({twin_id:twinId,mode:'custom',custom_persona:persona})
   });
   const d=await r.json();
-  if(d.error){document.getElementById('targeted-sim-msg').textContent=d.error;return;}
+  if(d.error){document.getElementById('targeted-sim-msg').textContent=d.error;setSimButtonsRunning(false);return;}
   currentSimId=d.sim_id;
+  if(d.already_running) document.getElementById('targeted-sim-msg').textContent='A simulation was already running for this twin — showing its live progress.';
   pollSimulation();
 }
 
@@ -1863,17 +2086,45 @@ function _showScenario(num){
   box.scrollTop = box.scrollHeight;
 }
 
+function setSimButtonsRunning(running){
+  const startBtn    = document.getElementById('btn-start-benchmark-sim');
+  const targetedBtn = document.getElementById('btn-start-targeted-sim');
+  const stopBtn     = document.getElementById('btn-stop-sim');
+  if(startBtn)    startBtn.disabled = running;
+  if(targetedBtn) targetedBtn.disabled = running;
+  if(stopBtn)     stopBtn.style.display = running ? 'inline-block' : 'none';
+}
+async function stopSimulation(){
+  if(!currentSimId) return;
+  const stopBtn = document.getElementById('btn-stop-sim');
+  if(stopBtn) stopBtn.disabled = true;
+  document.getElementById('sim-status-txt').textContent = '⏳ Stopping… finishing current turn';
+  try{
+    const r = await fetch('/simulation/'+currentSimId+'/stop', {
+      method:'POST',
+      headers:{'Authorization':'Bearer '+twinAuthToken}
+    });
+    if(r.status===401){handleExpiredAuth();return;}
+    // Polling will detect status='cancelled' and finalise the UI.
+  }catch(e){
+    if(stopBtn) stopBtn.disabled = false;
+  }
+}
 function pollSimulation(){
   if(simPollTimer) clearInterval(simPollTimer);
+  setSimButtonsRunning(true);
   simPollTimer=setInterval(async()=>{
     if(!currentSimId) return;
     const r=await fetch('/simulation/'+currentSimId,{headers:{'Authorization':'Bearer '+twinAuthToken}});
+    if(r.status===401){handleExpiredAuth();clearInterval(simPollTimer);simPollTimer=null;return;}
     const d=await r.json();
     const pct=d.total>0?Math.round(d.completed/d.total*100):0;
     document.getElementById('sim-bar').style.width=pct+'%';
     document.getElementById('sim-count').textContent=d.completed+' / '+d.total;
     document.getElementById('sim-status-txt').textContent=
       d.status==='completed'?'✓ Complete! Running analysis…':
+      d.status==='cancelled'?'⏹ Simulation stopped.':
+      d.status==='stopping'?'⏳ Stopping… finishing current turn':
       d.status==='error'?'Error: '+d.error:
       'Running… '+pct+'%';
 
@@ -1901,9 +2152,11 @@ function pollSimulation(){
       _showScenario(lt.scenario_num);
     }
 
-    if(d.status==='completed'||d.status==='error'){
+    if(d.status==='completed'||d.status==='error'||d.status==='cancelled'){
       clearInterval(simPollTimer);
+      simPollTimer=null;
       document.getElementById('sim-browser-live-badge').style.display = 'none';
+      setSimButtonsRunning(false);
       if(d.status==='completed') runAnalysis();
     }
   },2500);
@@ -2263,12 +2516,46 @@ function saveCoachingAsPDF(){
 
   doc.save('digital-twin-coaching-report.pdf');
 }
-function switchMode(m){
-  document.getElementById('mode-video').style.display = m==='video'?'':'none';
-  document.getElementById('mode-twin').style.display  = m==='twin' ?'':'none';
-  document.getElementById('btn-video').classList.toggle('active', m==='video');
-  document.getElementById('btn-twin').classList.toggle('active',  m==='twin');
-  if(m==='twin' && twinAuthToken && !twinSchema) loadTwinForm();
+// ── Welcome Onboarding Flow ────────────────────────────────────
+function showWelcomeStep1(){
+  clearTimeout(window._welcomeStep1Timer);
+  document.getElementById('mode-video').style.display='none';
+  document.getElementById('mode-twin').style.display='none';
+  document.getElementById('welcome-step1').style.display='flex';
+  window._welcomeStep1Timer = setTimeout(advanceWelcomeStep1, 4000);
+}
+function advanceWelcomeStep1(){
+  clearTimeout(window._welcomeStep1Timer);
+  document.getElementById('welcome-step1').style.display='none';
+  document.getElementById('welcome-step2').style.display='flex';
+}
+function showWelcomeStep2Only(){
+  document.getElementById('mode-video').style.display='none';
+  document.getElementById('mode-twin').style.display='none';
+  document.getElementById('welcome-step2').style.display='flex';
+}
+function chooseVideoAnalysis(){
+  document.getElementById('welcome-step2').style.display='none';
+  document.getElementById('mode-video').style.display='';
+}
+function chooseDigitalTwin(){
+  document.getElementById('welcome-step2').style.display='none';
+  const overlay = document.getElementById('twin-intro-overlay');
+  const vid = document.getElementById('twin-intro-video');
+  overlay.style.display='flex';
+  vid.currentTime = 0;
+  vid.play().catch(()=>{});
+}
+function finishTwinIntroVideo(){
+  const vid = document.getElementById('twin-intro-video');
+  vid.pause();
+  document.getElementById('twin-intro-overlay').style.display='none';
+  document.getElementById('twin-intro-image').style.display='flex';
+}
+function advanceTwinIntroImage(){
+  document.getElementById('twin-intro-image').style.display='none';
+  document.getElementById('mode-twin').style.display='';
+  if(twinAuthToken && !twinSchema) loadTwinForm();
 }
 
 // ── Login Gate ─────────────────────────────────────────────────
@@ -2276,6 +2563,8 @@ function initAuthGate(){
   if(twinAuthToken){
     document.getElementById('login-gate').style.display='none';
     document.getElementById('btn-logout').style.display='block';
+    loadTwinForm();
+    showWelcomeStep2Only();
   }
 }
 function gateSetMsg(msg,cls){
@@ -2331,9 +2620,15 @@ async function gateLogin(){
   document.getElementById('login-gate').style.display='none';
   document.getElementById('btn-logout').style.display='block';
   gateSetMsg('','');
+  loadTwinForm();
+  showWelcomeStep1();
 }
 function logout(){
   twinAuthToken=null;twinUserId=null;twinId=null;
+  hasExistingTwin=false;
+  hasDraftLoaded=false;
+  twinFormData={};
+  twinSchema=null;
   localStorage.removeItem('twinToken');
   localStorage.removeItem('twinUserId');
   localStorage.removeItem('twinId');
@@ -2345,6 +2640,14 @@ function logout(){
   document.getElementById('gate-success').style.display='none';
   document.getElementById('login-gate').style.display='flex';
   document.getElementById('btn-logout').style.display='none';
+  document.getElementById('welcome-step1').style.display='none';
+  document.getElementById('welcome-step2').style.display='none';
+  const introVid = document.getElementById('twin-intro-video');
+  introVid.pause();
+  document.getElementById('twin-intro-overlay').style.display='none';
+  document.getElementById('twin-intro-image').style.display='none';
+  document.getElementById('mode-video').style.display='none';
+  document.getElementById('mode-twin').style.display='none';
 }
 initAuthGate();
 </script>

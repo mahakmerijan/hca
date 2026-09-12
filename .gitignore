@@ -38,3 +38,11 @@ external_repos/
 gcp_service*.json
 
 # Secrets already excluded via .env above
+
+# Extra local-only excludes
+venv312/
+datasets/
+uploads/
+*.pem
+*credential*
+logs/*.jsonl
