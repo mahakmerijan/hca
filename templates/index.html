@@ -246,12 +246,13 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 .moment-scenarios{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
 .moment-tag{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:12px;background:rgba(124,106,246,.15);color:var(--accent2);border:1px solid rgba(124,106,246,.25)}
 /* ─── Login Gate ─── */
-#login-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
-.gate-card{background:#13161f;border:1px solid #252a3a;border-radius:20px;padding:40px 36px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+#login-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:safe center;justify-content:center;padding:24px;overflow-y:auto}
+.gate-card{background:#13161f;border:1px solid #252a3a;border-radius:20px;padding:40px 36px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.6);margin:auto}
 .gate-brand{text-align:center;margin-bottom:28px}
 .gate-brand .g-icon{font-size:2.8rem;margin-bottom:8px}
 .gate-brand h1{font-size:1.35rem;font-weight:800;color:#f0f2f8;letter-spacing:-.2px}
 .gate-brand p{color:#7a809a;font-size:.83rem;margin-top:6px}
+.gate-banner-img{width:100%;max-height:120px;object-fit:contain;display:block;border-radius:10px;margin:0 auto}
 #btn-logout{display:none;position:fixed;top:16px;right:16px;z-index:10000;padding:8px 18px;background:#13161f;border:1px solid #252a3a;color:#7a809a;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;transition:.2s}
 #btn-logout:hover{border-color:#f87171;color:#f87171}
 
@@ -277,9 +278,7 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 <div id="login-gate">
   <div class="gate-card">
     <div class="gate-brand">
-      <div class="g-icon">🧠</div>
-      <h1>AI Behaviour Counsellor</h1>
-      <p>Sign in to access your personal coaching platform</p>
+      <img src="/static/img/vyakti-login-banner.png" alt="Vyakti — Your counsellor buddy" class="gate-banner-img">
     </div>
     <h3 id="gate-title" style="color:#f0f2f8;font-size:1rem;font-weight:700;margin-bottom:18px">Create your account</h3>
     <div id="gate-fields">
