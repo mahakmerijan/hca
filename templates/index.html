@@ -2478,38 +2478,22 @@ function saveCoachingAsPDF(){
 }
 // ── Welcome Onboarding Flow ────────────────────────────────────
 function showWelcomeStep1(){
-  clearTimeout(window._welcomeStep1Timer);
-  document.getElementById('mode-video').style.display='none';
-  document.getElementById('mode-twin').style.display='none';
-  document.getElementById('welcome-step1').style.display='flex';
-  window._welcomeStep1Timer = setTimeout(advanceWelcomeStep1, 4000);
+  appShowScreen('welcome1');
 }
 function advanceWelcomeStep1(){
-  clearTimeout(window._welcomeStep1Timer);
-  document.getElementById('welcome-step1').style.display='none';
-  chooseDigitalTwin();
+  appShowScreen('twin-intro-video');
 }
 function showWelcomeStep2Only(){
-  document.getElementById('mode-video').style.display='none';
-  document.getElementById('mode-twin').style.display='none';
-  showUseCaseSelect();
+  appShowScreen('use-case-select');
 }
 function chooseDigitalTwin(){
-  const overlay = document.getElementById('twin-intro-overlay');
-  const vid = document.getElementById('twin-intro-video');
-  overlay.style.display='flex';
-  vid.currentTime = 0;
-  vid.play().catch(()=>{});
+  appShowScreen('twin-intro-video');
 }
 function finishTwinIntroVideo(){
-  const vid = document.getElementById('twin-intro-video');
-  vid.pause();
-  document.getElementById('twin-intro-overlay').style.display='none';
-  document.getElementById('twin-intro-image').style.display='flex';
+  appShowScreen('twin-intro-image');
 }
 function advanceTwinIntroImage(){
-  document.getElementById('twin-intro-image').style.display='none';
-  showUseCaseSelect();
+  appShowScreen('use-case-select');
 }
 
 // ── Use Case Selection (Vyakti Streak domains) ──────────────────
@@ -2518,8 +2502,10 @@ let selectedUseCaseLabel = localStorage.getItem('selectedUseCaseLabel') || null;
 let _useCasesCache = null;
 
 async function showUseCaseSelect(){
-  document.getElementById('use-case-select').style.display='flex';
-  document.getElementById('btn-logout').classList.add('uc-screen-active');
+  appShowScreen('use-case-select');
+}
+
+async function loadUseCasesIfNeeded(){
   if(!_useCasesCache){
     try{
       const r = await fetch('/use-cases');
@@ -2559,20 +2545,18 @@ function selectUseCase(id, label){
   selectedUseCaseLabel = label;
   localStorage.setItem('selectedUseCaseId', id);
   localStorage.setItem('selectedUseCaseLabel', label);
-  document.getElementById('use-case-select').style.display='none';
-  document.getElementById('btn-logout').classList.remove('uc-screen-active');
-  document.getElementById('mode-twin').style.display='';
   ltUpdateUseCaseBanner();
   loadTwinForm();
+  appShowScreen('twin:tab-form');
 }
 
 // ── Login Gate ─────────────────────────────────────────────────
 function initAuthGate(){
   if(twinAuthToken){
-    document.getElementById('login-gate').style.display='none';
-    document.getElementById('btn-logout').style.display='block';
     loadTwinForm();
-    showWelcomeStep2Only();
+    appShowScreen('use-case-select', {replace:true});
+  } else {
+    appShowScreen('login', {replace:true});
   }
 }
 function gateSetMsg(msg,cls){
@@ -2625,8 +2609,6 @@ async function gateLogin(){
   const d=await r.json();
   if(d.error){gateSetMsg(d.error,'err');return;}
   saveAuthSession(d);
-  document.getElementById('login-gate').style.display='none';
-  document.getElementById('btn-logout').style.display='block';
   gateSetMsg('','');
   loadTwinForm();
   showWelcomeStep1();
@@ -2646,19 +2628,8 @@ function logout(){
   document.getElementById('gate-password').value='';
   document.getElementById('gate-fields').style.display='block';
   document.getElementById('gate-success').style.display='none';
-  document.getElementById('login-gate').style.display='flex';
-  document.getElementById('btn-logout').style.display='none';
-  document.getElementById('welcome-step1').style.display='none';
-  const introVid = document.getElementById('twin-intro-video');
-  introVid.pause();
-  document.getElementById('twin-intro-overlay').style.display='none';
-  document.getElementById('twin-intro-image').style.display='none';
-  document.getElementById('use-case-select').style.display='none';
-  document.getElementById('btn-logout').classList.remove('uc-screen-active');
-  document.getElementById('mode-video').style.display='none';
-  document.getElementById('mode-twin').style.display='none';
+  appShowScreen('login', {replace:true});
 }
-initAuthGate();
 </script>
 
 <!-- ════════════════════════════════════════════════════════════
@@ -2687,6 +2658,9 @@ function ltSetChatControlsEnabled(enabled){
 }
 
 function showTwinTab(id, evt){
+  appShowScreen('twin:'+id);
+}
+function activateTwinTabPanel(id, evt){
   document.querySelectorAll('.twin-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.twin-tab').forEach(t=>t.classList.remove('active'));
   const panel = document.getElementById(id);
@@ -3054,6 +3028,82 @@ function ltRenderJudgment(j){
     ${(j.coaching_tips||[]).length?`<div class="card" style="background:#13161f;margin-top:0"><h2>🎯 Coaching Tips</h2><ul style="padding-left:18px">${j.coaching_tips.map(s=>`<li style="color:#d1d5e0;font-size:.86rem;margin-bottom:6px">${s}</li>`).join('')}</ul></div>`:''}
   `;
 }
+
+// ── Back-button-aware screen navigation ─────────────────────────
+// A single source of truth for "which top-level screen is showing", synced
+// with the browser history so the native back/forward buttons move between
+// app screens instead of leaving the app.
+function hideAllAppScreens(){
+  clearTimeout(window._welcomeStep1Timer);
+  // Navigating away (e.g. browser back) while a live call is running would
+  // otherwise leave the camera/mic streaming invisibly in the background.
+  if(typeof ltCallActive!=='undefined' && ltCallActive){
+    ltCallActive=false;
+    if(typeof ltFrameTimer!=='undefined' && ltFrameTimer) clearInterval(ltFrameTimer);
+    if(typeof ltAudioTimer!=='undefined' && ltAudioTimer) clearInterval(ltAudioTimer);
+    if(typeof ltMediaStream!=='undefined' && ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
+    if(typeof ltRecognition!=='undefined' && ltRecognition) ltRecognition.stop();
+    const startBtn=document.getElementById('lt-start-call-btn'), endBtn=document.getElementById('lt-end-call-btn');
+    if(startBtn) startBtn.style.display='inline-block';
+    if(endBtn) endBtn.style.display='none';
+    if(typeof ltSetChatControlsEnabled==='function') ltSetChatControlsEnabled(false);
+  }
+  document.getElementById('login-gate').style.display='none';
+  document.getElementById('welcome-step1').style.display='none';
+  const introVid = document.getElementById('twin-intro-video');
+  if(introVid) introVid.pause();
+  document.getElementById('twin-intro-overlay').style.display='none';
+  document.getElementById('twin-intro-image').style.display='none';
+  document.getElementById('use-case-select').style.display='none';
+  document.getElementById('btn-logout').classList.remove('uc-screen-active');
+  document.getElementById('mode-video').style.display='none';
+  document.getElementById('mode-twin').style.display='none';
+}
+
+function appShowScreen(screen, opts){
+  opts = opts || {};
+  hideAllAppScreens();
+  if(screen==='login'){
+    document.getElementById('login-gate').style.display='flex';
+    document.getElementById('btn-logout').style.display='none';
+  } else if(screen==='welcome1'){
+    document.getElementById('btn-logout').style.display='block';
+    document.getElementById('welcome-step1').style.display='flex';
+    window._welcomeStep1Timer = setTimeout(()=>appShowScreen('twin-intro-video'), 4000);
+  } else if(screen==='twin-intro-video'){
+    document.getElementById('btn-logout').style.display='block';
+    const overlay=document.getElementById('twin-intro-overlay');
+    const vid=document.getElementById('twin-intro-video');
+    overlay.style.display='flex';
+    vid.currentTime=0; vid.play().catch(()=>{});
+  } else if(screen==='twin-intro-image'){
+    document.getElementById('btn-logout').style.display='block';
+    document.getElementById('twin-intro-image').style.display='flex';
+  } else if(screen==='use-case-select'){
+    document.getElementById('btn-logout').style.display='block';
+    document.getElementById('use-case-select').style.display='flex';
+    document.getElementById('btn-logout').classList.add('uc-screen-active');
+    loadUseCasesIfNeeded();
+  } else if(screen && screen.indexOf('twin:')===0){
+    document.getElementById('btn-logout').style.display='block';
+    document.getElementById('mode-twin').style.display='';
+    activateTwinTabPanel(screen.slice(5));
+  } else {
+    document.getElementById('login-gate').style.display='flex';
+    screen = 'login';
+  }
+  if(!opts.fromHistory){
+    const method = opts.replace ? 'replaceState' : 'pushState';
+    history[method]({appScreen:screen}, '', '#'+screen);
+  }
+}
+
+window.addEventListener('popstate', (e)=>{
+  const screen = (e.state && e.state.appScreen) || 'login';
+  appShowScreen(screen, {fromHistory:true});
+});
+
+initAuthGate();
 </script>
 
 </div><!-- end #mode-twin -->
