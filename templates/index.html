@@ -318,6 +318,8 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 
 <!-- ═══ USE CASE SELECTION (shown once, before "Describe Them") ═══ -->
 <style>
+#use-case-select{justify-content:flex-start !important}
+.uc-wrap{max-width:1000px;width:100%;margin:0 auto;padding:24px 0 40px}
 .uc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;max-width:1000px;width:100%}
 .uc-card{background:#13161f;border:1px solid #252a3a;border-radius:14px;padding:20px 18px;cursor:pointer;transition:.2s;text-align:left}
 .uc-card:hover{border-color:#7c6af6;background:#171b2a;transform:translateY(-2px)}
@@ -325,11 +327,20 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 .uc-label{color:#f0f2f8;font-weight:700;font-size:.95rem;margin-bottom:6px}
 .uc-desc{color:#7a809a;font-size:.78rem;line-height:1.55}
 .uc-level-pill{display:inline-block;margin-top:10px;font-size:.7rem;font-weight:700;color:#a599ff;background:rgba(124,106,246,.12);padding:3px 10px;border-radius:20px}
+.uc-heading{color:#f0f2f8;font-size:1.6rem;font-weight:800;text-align:center;margin-bottom:8px}
+.uc-subheading{color:#7a809a;text-align:center;font-size:.9rem;margin-bottom:28px}
+@media (max-width:600px){
+  .uc-wrap{padding:16px 0 28px}
+  .uc-heading{font-size:1.25rem}
+  .uc-subheading{font-size:.82rem;margin-bottom:18px}
+  .uc-grid{gap:12px}
+  .uc-card{padding:16px 14px}
+}
 </style>
-<div id="use-case-select" class="welcome-overlay" style="overflow-y:auto;padding:50px 20px">
-  <div style="max-width:1000px;width:100%">
-    <h2 style="color:#f0f2f8;font-size:1.6rem;font-weight:800;text-align:center;margin-bottom:8px">What are you practicing for today?</h2>
-    <p style="color:#7a809a;text-align:center;font-size:.9rem;margin-bottom:28px">Pick a use case — your Digital Twin, coaching, and Vyakti Streak are all tailored to it.</p>
+<div id="use-case-select" class="welcome-overlay" style="overflow-y:auto;align-items:center;padding:0 16px">
+  <div class="uc-wrap">
+    <h2 class="uc-heading">What are you practicing for today?</h2>
+    <p class="uc-subheading">Pick a use case — your Digital Twin, coaching, and Vyakti Streak are all tailored to it.</p>
     <div id="use-case-grid" class="uc-grid"></div>
   </div>
 </div>
