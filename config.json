@@ -1,0 +1,38 @@
+{
+    "video_path": "video.mp4",
+    "analysis": {
+        "frame_sample_rate": 30,
+        "face_confidence_threshold": 0.5,
+        "pose_confidence_threshold": 0.5,
+        "audio_segment_duration": 5
+    },
+    "weights": {
+        "job_interview": {
+            "facial_expression": 0.25,
+            "body_language": 0.25,
+            "voice_tone": 0.20,
+            "speech_clarity": 0.15,
+            "confidence_level": 0.15
+        },
+        "business_deal": {
+            "facial_expression": 0.20,
+            "body_language": 0.20,
+            "voice_tone": 0.25,
+            "speech_clarity": 0.20,
+            "confidence_level": 0.15
+        },
+        "date": {
+            "facial_expression": 0.30,
+            "body_language": 0.25,
+            "voice_tone": 0.20,
+            "speech_clarity": 0.10,
+            "confidence_level": 0.15
+        }
+    },
+    "output": {
+        "save_report": true,
+        "report_path": "output/analysis_report.txt",
+        "save_annotated_frames": true,
+        "annotated_frames_dir": "output/frames"
+    }
+}

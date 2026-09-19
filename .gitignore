@@ -1,0 +1,35 @@
+# Virtual environments
+venv/
+venv312/
+__pycache__/
+*.pyc
+
+# Secrets / credentials
+.env
+*.env
+gcp_service*.json
+*service-account*.json
+*.pem
+*.key
+
+# Large / regenerable / runtime data
+datasets/
+external_repos/
+models/
+output/
+uploads/
+logs/
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Large stray media/demo assets at repo root only (static/ app assets are kept)
+/*.mp4
+/*.pdf
+/*.png
+/*.jpeg
+/*.jpg
+/server.log
