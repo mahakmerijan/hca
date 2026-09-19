@@ -335,6 +335,9 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
   .uc-subheading{font-size:.82rem;margin-bottom:18px}
   .uc-grid{gap:12px}
   .uc-card{padding:16px 14px}
+  /* Log Out sits top-right by default, which overlaps the centered heading on
+     narrow screens — push it to the bottom while this screen is active. */
+  #btn-logout.uc-screen-active{top:auto;bottom:14px}
 }
 </style>
 <div id="use-case-select" class="welcome-overlay" style="overflow-y:auto;align-items:center;padding:0 16px">
@@ -2516,6 +2519,7 @@ let _useCasesCache = null;
 
 async function showUseCaseSelect(){
   document.getElementById('use-case-select').style.display='flex';
+  document.getElementById('btn-logout').classList.add('uc-screen-active');
   if(!_useCasesCache){
     try{
       const r = await fetch('/use-cases');
@@ -2556,6 +2560,7 @@ function selectUseCase(id, label){
   localStorage.setItem('selectedUseCaseId', id);
   localStorage.setItem('selectedUseCaseLabel', label);
   document.getElementById('use-case-select').style.display='none';
+  document.getElementById('btn-logout').classList.remove('uc-screen-active');
   document.getElementById('mode-twin').style.display='';
   ltUpdateUseCaseBanner();
   loadTwinForm();
@@ -2649,6 +2654,7 @@ function logout(){
   document.getElementById('twin-intro-overlay').style.display='none';
   document.getElementById('twin-intro-image').style.display='none';
   document.getElementById('use-case-select').style.display='none';
+  document.getElementById('btn-logout').classList.remove('uc-screen-active');
   document.getElementById('mode-video').style.display='none';
   document.getElementById('mode-twin').style.display='none';
 }
