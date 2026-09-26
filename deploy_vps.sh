@@ -2,11 +2,19 @@
 # Deployment script for hca_v2 on Contabo VPS (169.58.250.61)
 set -e
 
+PUBLIC_IP="${PUBLIC_IP:-169.58.250.61}"
+# Browsers expose camera/mic (getUserMedia) only on secure origins, and Let's Encrypt
+# will not issue for a bare IP — sslip.io resolves <dashed-ip>.sslip.io to that IP, so it
+# gives us a certifiable hostname with no DNS registrar. Override DOMAIN for a real domain.
+DOMAIN="${DOMAIN:-${PUBLIC_IP//./-}.sslip.io}"
+CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
+
 echo "=== HCA v2 Deployment ==="
+echo "    Domain: $DOMAIN"
 
 # 1. System update & deps
 apt-get update -y
-apt-get install -y python3.11 python3.11-venv python3-pip git curl nginx supervisor libsndfile1 ffmpeg libgl1-mesa-glx libglib2.0-0
+apt-get install -y python3.11 python3.11-venv python3-pip git curl nginx supervisor libsndfile1 ffmpeg libgl1-mesa-glx libglib2.0-0 certbot python3-certbot-nginx
 
 # 2. Clone or pull repo
 if [ -d /opt/hca ]; then
@@ -70,17 +78,20 @@ stdout_logfile=/var/log/hca.out.log
 environment=PYTHONUNBUFFERED="1",HCA_TELEMETRY_LOG_DIR="/opt/hca/logs"
 EOF
 
-# 7. Nginx reverse proxy (port 80 → Flask 5004)
-cat > /etc/nginx/sites-available/hca << 'EOF'
+# 7. Nginx reverse proxy (port 80 → Flask 5004). Certbot rewrites this file in step 8
+#    to add the TLS listener and the 80 → 443 redirect.
+cat > /etc/nginx/sites-available/hca << EOF
 server {
     listen 80;
-    server_name _;
+    server_name $DOMAIN;
     client_max_body_size 600M;
 
     location / {
         proxy_pass http://127.0.0.1:5004;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300;
         proxy_send_timeout 300;
     }
@@ -89,14 +100,34 @@ EOF
 
 ln -sf /etc/nginx/sites-available/hca /etc/nginx/sites-enabled/hca
 rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
 
-# 8. Start services
+# 8. TLS certificate (HTTP-01 challenge needs port 80 reachable from the internet)
+CERTBOT_ARGS=(--nginx -d "$DOMAIN" --redirect --non-interactive --agree-tos)
+if [ -n "$CERTBOT_EMAIL" ]; then
+  CERTBOT_ARGS+=(-m "$CERTBOT_EMAIL")
+else
+  CERTBOT_ARGS+=(--register-unsafely-without-email)
+fi
+
+if certbot "${CERTBOT_ARGS[@]}"; then
+  systemctl enable --now certbot.timer || true
+  APP_URL="https://$DOMAIN"
+else
+  echo "⚠️  certbot failed — site stays on plain HTTP and camera/mic will NOT work."
+  echo "    Check that port 80 is open and that $DOMAIN resolves to $PUBLIC_IP, then rerun:"
+  echo "    certbot --nginx -d $DOMAIN --redirect"
+  APP_URL="http://$DOMAIN"
+fi
+
+# 9. Start services
 supervisorctl reread && supervisorctl update && supervisorctl restart hca || supervisorctl start hca
 nginx -t && systemctl restart nginx
 
 echo ""
 echo "✅ Deployment complete!"
-echo "   App running at: http://169.58.250.61"
+echo "   App running at: $APP_URL"
+echo "   Use this URL (not the bare IP) — camera/mic require HTTPS."
 echo "   Logs: tail -f /var/log/hca.out.log"
 echo "   Run telemetry: tail -f /opt/hca/logs/token_usage.jsonl"
 echo "   Edit credentials: nano /opt/hca/.env"
