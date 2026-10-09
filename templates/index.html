@@ -2546,6 +2546,7 @@ function selectUseCase(id, label){
   localStorage.setItem('selectedUseCaseId', id);
   localStorage.setItem('selectedUseCaseLabel', label);
   ltUpdateUseCaseBanner();
+  ltResetFlowState();
   loadTwinForm();
   appShowScreen('twin:tab-form');
 }
@@ -2655,6 +2656,57 @@ function ltSetChatControlsEnabled(enabled){
   document.getElementById('lt-msg-input').disabled = !enabled;
   document.getElementById('lt-mic-btn').disabled = !enabled;
   document.getElementById('lt-send-btn').disabled = !enabled;
+}
+
+// Wipes every trace of a previous describe→questions→build→call→judgment run
+// so switching use cases always lands on a genuinely fresh "Describe Them" screen.
+function ltResetFlowState(){
+  if(ltCallActive) ltEndCallSilently();
+
+  ltSessionId = null;
+  ltPersona = null;
+  ltOpeningLine = null;
+  twinFormData = {};
+
+  const descInput = document.getElementById('lt-desc-input');
+  if(descInput) descInput.value = '';
+  const qContainer = document.getElementById('lt-q-container');
+  if(qContainer) qContainer.innerHTML = '';
+  const buildRow = document.getElementById('lt-build-row');
+  if(buildRow) buildRow.style.display = 'none';
+  const genStatus = document.getElementById('lt-gen-status');
+  if(genStatus) genStatus.textContent = '';
+  ltSetStatus('');
+
+  const personaBanner = document.getElementById('lt-persona-banner');
+  if(personaBanner) personaBanner.style.display = 'none';
+  const chatBox = document.getElementById('lt-chat-box');
+  if(chatBox) chatBox.innerHTML = '';
+  const msgInput = document.getElementById('lt-msg-input');
+  if(msgInput) msgInput.value = '';
+  document.getElementById('lt-start-call-btn').style.display = 'inline-block';
+  document.getElementById('lt-end-call-btn').style.display = 'none';
+  document.getElementById('lt-call-status').textContent = '';
+  ltSetChatControlsEnabled(false);
+
+  const judgmentContainer = document.getElementById('lt-judgment-container');
+  if(judgmentContainer) judgmentContainer.innerHTML = '<p style="color:#7a809a;text-align:center;padding:40px">Finish a live conversation to see your judgment here.</p>';
+
+  document.querySelectorAll('.twin-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.twin-tab').forEach((t,i)=>t.classList.toggle('active', i===0));
+  const formPanel = document.getElementById('tab-form');
+  if(formPanel) formPanel.classList.add('active');
+}
+
+// Best-effort teardown of an in-progress call's media/timers without hitting
+// /live/end (used only when a use-case switch interrupts an active call).
+function ltEndCallSilently(){
+  ltCallActive = false;
+  if(ltFrameTimer) clearInterval(ltFrameTimer);
+  if(ltAudioTimer) clearInterval(ltAudioTimer);
+  if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
+  if(ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
+  if(ltRecognition) ltRecognition.stop();
 }
 
 function showTwinTab(id, evt){
