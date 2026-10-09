@@ -75,7 +75,7 @@ autostart=true
 autorestart=true
 stderr_logfile=/var/log/hca.err.log
 stdout_logfile=/var/log/hca.out.log
-environment=PYTHONUNBUFFERED="1",HCA_TELEMETRY_LOG_DIR="/opt/hca/logs"
+environment=PYTHONUNBUFFERED="1",HCA_TELEMETRY_LOG_DIR="/opt/hca/logs",OMP_NUM_THREADS="1",OPENBLAS_NUM_THREADS="1",MKL_NUM_THREADS="1",TF_NUM_INTRAOP_THREADS="1",TF_NUM_INTEROP_THREADS="1"
 EOF
 
 # 7. Nginx reverse proxy (port 80 → Flask 5004). Certbot rewrites this file in step 8

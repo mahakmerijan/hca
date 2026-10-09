@@ -101,7 +101,13 @@ class FacialExpressionAnalyzer:
                 results = results[0]
 
             dominant = results.get("dominant_emotion", "neutral")
-            emotions = results.get("emotion", {})
+            # DeepFace returns emotion scores as numpy.float32, which json.dumps
+            # can't serialize — normalize to native floats at the source so
+            # every downstream aggregate (get_average_emotion_scores, etc.) and
+            # the live judge's behavior_summary (sent straight to jsonify) stay
+            # JSON-safe. This broke /live/end with a hard 500 once DeepFace
+            # actually started running (previously masked while it was unavailable).
+            emotions = {k: float(v) for k, v in results.get("emotion", {}).items()}
 
             result = {
                 "frame_idx": frame_idx,

@@ -16,6 +16,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Cap native library thread pools ───────────────────────────────────────
+# This VPS has only 4 vCPUs but gunicorn runs 8 concurrent gthread workers.
+# TensorFlow (DeepFace), OpenCV, and numpy's BLAS backend each try to use ALL
+# available cores for their own internal thread pool by default — with 8
+# concurrent live-call frame/audio requests each spinning up multiple native
+# threads, the box was wildly oversubscribed (individual frame analyses
+# measured at 10-220+ seconds instead of ~1-2s, which read as the digital
+# twin "getting stuck"). Force every native library to 1 thread so Python's
+# own gthread concurrency is the only parallelism in play; set via
+# os.environ.setdefault so .env/Supervisor can still override if needed.
+for _thread_env_var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+                        "TF_NUM_INTRAOP_THREADS", "TF_NUM_INTEROP_THREADS"):
+    os.environ.setdefault(_thread_env_var, "1")
+try:
+    import cv2 as _cv2
+    _cv2.setNumThreads(1)
+except Exception as _e:
+    print(f"[Startup] cv2.setNumThreads(1) skipped: {_e}")
+
 # ── Build GOOGLE_APPLICATION_CREDENTIALS from individual .env fields ──────────
 # ── Option A: full JSON blob stored as GOOGLE_CREDENTIALS_JSON env var ───────
 # On Render (or any host without a filesystem), paste the entire JSON content
@@ -148,6 +167,31 @@ def _services():
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB max upload
+
+# Analyzers (DeepFace/numpy/MediaPipe) routinely leak numpy scalar types into
+# response dicts (e.g. np.float32 emotion scores), which the default JSON
+# encoder can't serialize and crashes the whole response with a 500 — this
+# took down /live/end once DeepFace started actually running. Coerce numpy
+# scalars/arrays to native Python types as an app-wide safety net instead of
+# relying on every analyzer call site to remember to cast.
+from flask.json.provider import DefaultJSONProvider
+
+
+class _NumpySafeJSONProvider(DefaultJSONProvider):
+    @staticmethod
+    def default(o):
+        try:
+            import numpy as np
+            if isinstance(o, np.generic):
+                return o.item()
+            if isinstance(o, np.ndarray):
+                return o.tolist()
+        except ImportError:
+            pass
+        return DefaultJSONProvider.default(o)
+
+
+app.json = _NumpySafeJSONProvider(app)
 
 ALLOWED_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "webm", "flv", "wmv"}
 
