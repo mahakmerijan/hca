@@ -3098,7 +3098,7 @@ function ltRenderJudgment(j){
       <div class="stats-grid">
         <div class="sim-stat"><div class="val">${streak.current_streak}</div><div class="lbl">Day Streak</div></div>
         <div class="sim-stat"><div class="val">${streak.longest_streak}</div><div class="lbl">Longest Streak</div></div>
-        <div class="sim-stat"><div class="val">Lvl ${streak.level}</div><div class="lbl">${streak.level_name}</div></div>
+        <div class="sim-stat"><div class="val">Level ${streak.level}</div><div class="lbl">${streak.level_name}</div></div>
       </div>
       ${streak.newly_earned_badge?`<div class="insight-box" style="margin-top:16px"><strong>🏅 New Badge Unlocked:</strong> ${streak.newly_earned_badge}! You've been graduated to a tougher twin.</div>`:''}
       ${(streak.badges&&streak.badges.length)?`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${streak.badges.map(b=>`<span class="uc-level-pill">🏅 ${b}</span>`).join('')}</div>`:''}
