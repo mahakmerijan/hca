@@ -3136,6 +3136,10 @@ function ltRenderJudgment(j){
     </div>`).join('');
 
   c.innerHTML=`
+    <div class="counsellor-banner" style="margin-bottom:24px">
+      <h2>🏆 Your Live Performance Judgment</h2>
+      <div class="summary">${j.situation_fit_summary||''}</div>
+    </div>
     ${confHtml}
     ${hexHtml}
     ${streakHtml}
