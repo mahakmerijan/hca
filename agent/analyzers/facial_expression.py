@@ -87,6 +87,14 @@ class FacialExpressionAnalyzer:
                 frame,
                 actions=["emotion"],
                 enforce_detection=False,
+                # opencv's bundled Haar-cascade backend is unreliable across
+                # opencv-python/opencv-python-headless/opencv-contrib-python
+                # packaging conflicts (missing cv2/data/*.xml). mediapipe's
+                # backend needs the legacy mp.solutions API, which the
+                # installed mediapipe release (Tasks-API-only) doesn't expose.
+                # mtcnn has its own bundled weights, is fast enough for a
+                # live per-frame pipeline, and has no such dependency issues.
+                detector_backend="mtcnn",
                 silent=True,
             )
             if isinstance(results, list):

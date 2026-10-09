@@ -233,13 +233,19 @@ class LivePerformanceJudge:
             return fb
 
     def _ensure_computed_fields(self, judgment: dict):
-        """Defensive fallback if the model omits confidence_score/growth_hexagon."""
+        """Make confidence_score a deterministic function of the already-vetted
+        per-dimension scores, instead of trusting the model's own free-floated
+        number — in practice the LLM reliably confuses the instructed 0-100
+        scale with the 1-10 scale used everywhere else in this same schema
+        (e.g. emitting 5 instead of 50), so a plausible-looking but wrong value
+        always passed the old isinstance-only validation and never got fixed.
+        This also guarantees it matches the UI's own description of the score
+        as "built from every measured signal" (the dimension average)."""
         dims = judgment.get("dimensions", {}) or {}
         dim_scores = [d.get("score", 5) for d in dims.values() if isinstance(d, dict)]
         avg_dim = (sum(dim_scores) / len(dim_scores)) if dim_scores else 5
 
-        if not isinstance(judgment.get("confidence_score"), (int, float)):
-            judgment["confidence_score"] = round(avg_dim * 10, 1)
+        judgment["confidence_score"] = round(avg_dim * 10, 1)
 
         if not isinstance(judgment.get("growth_hexagon"), dict) or not judgment["growth_hexagon"]:
             judgment["growth_hexagon"] = {

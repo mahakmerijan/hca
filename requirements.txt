@@ -11,6 +11,12 @@ google-genai>=1.0.0
 python-dotenv>=1.0.0
 flask>=3.0.0
 
+# ── Facial expression analysis ────────────────────────────────────
+# tf-keras is required because deepface imports keras.src.legacy; TF 2.16+
+# defaults to Keras 3, which deepface does not yet support directly.
+deepface>=0.0.90
+tf-keras>=2.16.0
+
 # ── Digital Twin / LangChain / LangGraph stack ────────────────────
 langchain>=0.3.0
 langgraph>=0.2.0
