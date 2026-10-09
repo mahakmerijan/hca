@@ -2651,6 +2651,8 @@ let ltMediaRecorder = null;
 let ltRecognition = null;
 let ltListening = false;
 let ltCallActive = false;
+let ltSending = false;
+let ltSendAbortController = null;
 
 function ltSetChatControlsEnabled(enabled){
   document.getElementById('lt-msg-input').disabled = !enabled;
@@ -2702,6 +2704,7 @@ function ltResetFlowState(){
 // /live/end (used only when a use-case switch interrupts an active call).
 function ltEndCallSilently(){
   ltCallActive = false;
+  if(ltSendAbortController) ltSendAbortController.abort();
   if(ltFrameTimer) clearInterval(ltFrameTimer);
   if(ltAudioTimer) clearInterval(ltAudioTimer);
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
@@ -2828,6 +2831,25 @@ function ltRenderChatMessage(role, content){
   }
 }
 
+// Shows a removable "…thinking" bubble while waiting on /live/message, so a
+// slow reply reads as "in progress" instead of looking frozen/stuck.
+function ltShowThinkingBubble(){
+  const box=document.getElementById('lt-chat-box');
+  const wrap=document.createElement('div');
+  wrap.className='sim-bubble-wrap twin';
+  wrap.id='lt-thinking-bubble';
+  const label=document.createElement('div');
+  label.className='sim-bubble-label twin';
+  label.textContent = '🤖 '+((ltPersona&&ltPersona.persona_name)||'Twin');
+  const bubble=document.createElement('div');
+  bubble.className='sim-bubble twin';
+  bubble.textContent='…';
+  wrap.appendChild(label); wrap.appendChild(bubble);
+  box.appendChild(wrap);
+  box.scrollTop=box.scrollHeight;
+  return wrap;
+}
+
 async function ltStartCall(){
   if(!ltSessionId || !ltPersona){ document.getElementById('lt-call-status').textContent='Build the twin first (Describe Them tab).'; return; }
   try{
@@ -2889,24 +2911,52 @@ function ltStartAudioChunking(){
 }
 
 async function ltSendMessage(){
-  if(!ltCallActive) return;
+  // Guard against: sending once the call has already ended, and against
+  // piling up concurrent sends (mashing Send/Enter) which is what made
+  // replies feel "stuck" — only one in-flight request at a time.
+  if(!ltCallActive || ltSending) return;
   const input=document.getElementById('lt-msg-input');
   const text=input.value.trim();
   if(!text || !ltSessionId) return;
   input.value='';
   ltRenderChatMessage('user', text);
+
+  ltSending=true;
+  ltSetChatControlsEnabled(false);
+  const thinkingBubble=ltShowThinkingBubble();
+  const controller=new AbortController();
+  ltSendAbortController=controller;
+  const timeoutId=setTimeout(()=>controller.abort(), 25000);
   try{
     const r=await fetch('/live/message',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
-      body:JSON.stringify({session_id:ltSessionId, message:text})
+      body:JSON.stringify({session_id:ltSessionId, message:text}),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
+    thinkingBubble.remove();
+    // The call may have been ended while this request was in flight — drop
+    // the late reply instead of rendering/speaking it after "End" was clicked.
+    if(!ltCallActive) return;
     if(r.status===401){handleExpiredAuth();return;}
     const d=await r.json();
+    if(!ltCallActive) return;
     if(d.error){ ltRenderChatMessage('twin','[Error: '+d.error+']'); return; }
     ltRenderChatMessage('twin', d.reply);
   }catch(e){
-    ltRenderChatMessage('twin','[Connection error]');
+    clearTimeout(timeoutId);
+    thinkingBubble.remove();
+    if(!ltCallActive) return;
+    if(e.name==='AbortError'){
+      ltRenderChatMessage('twin','[Taking too long to respond — please try again.]');
+    } else {
+      ltRenderChatMessage('twin','[Connection error]');
+    }
+  }finally{
+    ltSending=false;
+    ltSendAbortController=null;
+    if(ltCallActive) ltSetChatControlsEnabled(true);
   }
 }
 
@@ -2937,6 +2987,11 @@ function ltToggleMic(){
 async function ltEndCall(){
   ltCallActive=false;
   ltSetChatControlsEnabled(false);
+  // Immediately cancel any in-flight twin reply instead of letting it finish
+  // in the background — "End & Get Judged" should stop everything right away.
+  if(ltSendAbortController) ltSendAbortController.abort();
+  const strayBubble=document.getElementById('lt-thinking-bubble');
+  if(strayBubble) strayBubble.remove();
   if(ltFrameTimer) clearInterval(ltFrameTimer);
   if(ltAudioTimer) clearInterval(ltAudioTimer);
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
