@@ -2653,6 +2653,11 @@ let ltListening = false;
 let ltCallActive = false;
 let ltSending = false;
 let ltSendAbortController = null;
+// Chrome has a long-standing bug where a SpeechSynthesisUtterance with no
+// surviving JS reference can get garbage-collected mid-utterance, silently
+// cutting off speech (text still renders fine, since that's unrelated DOM
+// work) — keep a persistent reference so it can't be collected until done.
+let ltCurrentUtterance = null;
 
 function ltSetChatControlsEnabled(enabled){
   document.getElementById('lt-msg-input').disabled = !enabled;
@@ -2710,6 +2715,7 @@ function ltEndCallSilently(){
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
   if(ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
   if(ltRecognition) ltRecognition.stop();
+  if(window.speechSynthesis) speechSynthesis.cancel();
 }
 
 function showTwinTab(id, evt){
@@ -2827,7 +2833,19 @@ function ltRenderChatMessage(role, content){
   box.appendChild(wrap);
   box.scrollTop=box.scrollHeight;
   if(role==='twin' && window.speechSynthesis){
-    try{ const u=new SpeechSynthesisUtterance(content); u.rate=1.02; speechSynthesis.speak(u); }catch(e){}
+    try{
+      // Cancel any still-pending utterance first — a stuck/leftover item in
+      // the speech queue (e.g. from a previous reply) can silently block
+      // every subsequent speak() call from ever producing audio.
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(content);
+      u.rate=1.02;
+      u.onerror=(e)=>console.warn('[TTS] speechSynthesis error:', e.error);
+      ltCurrentUtterance=u;
+      speechSynthesis.speak(u);
+    }catch(e){
+      console.warn('[TTS] speechSynthesis failed:', e);
+    }
   }
 }
 
@@ -2997,6 +3015,7 @@ async function ltEndCall(){
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
   if(ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
   if(ltRecognition) ltRecognition.stop();
+  if(window.speechSynthesis) speechSynthesis.cancel();
   document.getElementById('lt-end-call-btn').style.display='none';
   document.getElementById('lt-start-call-btn').style.display='inline-block';
   document.getElementById('lt-call-status').textContent='⏳ Judging your performance…';
