@@ -12,6 +12,7 @@ Orchestrates the full Live Digital Twin flow, in-memory (mirrors the
   5. judged     → LivePerformanceJudge grades the real performance
 """
 
+import threading
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -73,6 +74,11 @@ class LiveTwinSessionManager:
             "phase": "awaiting_answers",
             "judgment": None,
             "created_at": datetime.utcnow().isoformat(),
+            # Per-session background frame-analysis worker bookkeeping — see
+            # ingest_frame() for why this exists.
+            "_frame_lock": threading.Lock(),
+            "_pending_frame": None,
+            "_frame_worker_running": False,
         }
         return {"session_id": session_id, "questions": questions, "use_case_id": use_case_id, "level": level}
 
@@ -124,20 +130,63 @@ class LiveTwinSessionManager:
         return {"reply": reply}
 
     def ingest_frame(self, session_id: str, image_b64: str) -> bool:
+        # A single frame's full analysis (DeepFace + 3x MediaPipe Tasks, run
+        # sequentially) can take far longer than the ~2.5s the browser waits
+        # between captures on this hardware (measured 10-200+s under load).
+        # Running it synchronously blocked a shared gunicorn worker thread for
+        # that whole duration, starving /live/message until it timed out
+        # client-side. Process in a dedicated background thread per session
+        # instead, keeping only the LATEST pending frame and dropping any that
+        # arrive while one is already being processed — for behavioral
+        # averaging a recent sample is enough; queuing every frame would only
+        # grow a backlog this hardware can never catch up on.
         session = self._require(session_id)
-        with track_stage(
-            "live_frame_analysis", "DeepFace+MediaPipe(Pose/Hand/Face)", "non_llm",
-            extra={"run_id": session_id, "run_type": _RUN_TYPE, "user_id": session["user_id"] or ""},
-        ):
-            return session["tracker"].ingest_frame_b64(image_b64)
+        lock = session["_frame_lock"]
+        with lock:
+            session["_pending_frame"] = image_b64
+            if session["_frame_worker_running"]:
+                return True
+            session["_frame_worker_running"] = True
+
+        def _drain():
+            while True:
+                with lock:
+                    frame = session["_pending_frame"]
+                    session["_pending_frame"] = None
+                    if frame is None:
+                        session["_frame_worker_running"] = False
+                        return
+                try:
+                    with track_stage(
+                        "live_frame_analysis", "DeepFace+MediaPipe(Pose/Hand/Face)", "non_llm",
+                        extra={"run_id": session_id, "run_type": _RUN_TYPE, "user_id": session["user_id"] or ""},
+                    ):
+                        session["tracker"].ingest_frame_b64(frame)
+                except Exception as e:
+                    print(f"[LiveTwinSessionManager] Background frame analysis failed: {e}")
+
+        threading.Thread(target=_drain, daemon=True).start()
+        return True
 
     def ingest_audio(self, session_id: str, audio_b64: str, suffix: str = ".webm") -> Optional[dict]:
+        # Same rationale as ingest_frame: don't block the shared worker-thread
+        # pool on CPU-heavy analysis. Audio chunks are smaller/cheaper than
+        # frames and matter more for transcript completeness, so every chunk
+        # gets processed (no dropping) — just off the request-handling thread.
         session = self._require(session_id)
-        with track_stage(
-            "live_audio_analysis", "Librosa+SpeechRecognition", "non_llm",
-            extra={"run_id": session_id, "run_type": _RUN_TYPE, "user_id": session["user_id"] or ""},
-        ):
-            return session["tracker"].ingest_audio_b64(audio_b64, suffix=suffix)
+
+        def _process():
+            try:
+                with track_stage(
+                    "live_audio_analysis", "Librosa+SpeechRecognition", "non_llm",
+                    extra={"run_id": session_id, "run_type": _RUN_TYPE, "user_id": session["user_id"] or ""},
+                ):
+                    session["tracker"].ingest_audio_b64(audio_b64, suffix=suffix)
+            except Exception as e:
+                print(f"[LiveTwinSessionManager] Background audio analysis failed: {e}")
+
+        threading.Thread(target=_process, daemon=True).start()
+        return {"ok": True}
 
     # ── Phase 5: judge performance ───────────────────────────────────
     def end_session(self, session_id: str) -> dict:
