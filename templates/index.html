@@ -3073,7 +3073,6 @@ function ltRenderJudgment(j){
       <div class="bar-track"><div class="bar-fill" style="width:${score*10}%;background:${col}"></div></div>
       <div style="font-size:.78rem;color:#7a809a;margin:4px 0 12px">${d.reason||''}</div></div>`;
   });
-  const overallCol=ltScoreColor(j.overall_score||0);
 
   const confScore = j.confidence_score!=null ? j.confidence_score : 0;
   const confCol = ltScoreColor(confScore/10);
@@ -3118,11 +3117,6 @@ function ltRenderJudgment(j){
     </div>`).join('');
 
   c.innerHTML=`
-    <div class="counsellor-banner" style="margin-bottom:24px">
-      <h2>🏆 Your Live Performance Judgment</h2>
-      <div class="summary">${j.situation_fit_summary||''}</div>
-      <div style="margin-top:14px;font-size:2rem;font-weight:800;color:${overallCol}">${j.overall_score||0}/10 — ${(j.verdict||'').replace(/_/g,' ')}</div>
-    </div>
     ${confHtml}
     ${hexHtml}
     ${streakHtml}
