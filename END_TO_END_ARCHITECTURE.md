@@ -1,6 +1,6 @@
 # HCA End-to-End Flow and Architecture
 
-This document describes what the current codebase does from the user's first screen through video coaching, Digital Twin creation, simulation, and post-simulation feedback. It follows the Flask application in `app.py` and `templates/index.html`; it does not treat every aspiration in `architecture.md` as already implemented. It also covers the `live-video` branch's real-time Live Digital Twin call feature (see "Live Digital Twin — Real-Time Call" below), which is the branch currently deployed to production.
+This document describes what the current codebase does from the user's first screen through video coaching, Digital Twin creation, simulation, and post-simulation feedback. It follows the web application and its browser-side pages; it does not treat every aspiration in the separate high-level architecture notes as already implemented. It also covers the real-time Live Digital Twin call feature described further below, which is the version currently deployed to production.
 
 ## At a Glance
 
@@ -45,34 +45,34 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    subgraph Browser[Browser: templates/index.html]
+    subgraph Browser[Browser: the web page]
         UI[Login gate, onboarding, video coach, twin questionnaire, simulation tabs, reports]
-        Local[localStorage: auth token, user/twin IDs, some drafts and video job IDs]
+        Local[Local browser storage: auth token, user/twin IDs, some drafts and video job IDs]
         UI <--> Local
     end
 
-    subgraph Flask[Flask application: app.py]
-        Routes[HTTP routes and JSON responses]
-        Jobs[Process-local jobs and user_contexts dictionaries]
-        Worker[Daemon thread: video analysis]
-        Services[Lazy service initialization]
+    subgraph Server[Web server]
+        Routes[HTTP routes and responses]
+        Jobs[In-memory job and user-context tracking]
+        Worker[Background thread: video analysis]
+        Services[Services created on first use]
     end
 
     subgraph Domain[Domain services]
-        User[UserService: account, password hash, JWT]
-        Analysis[AnalysisService: failure clusters, feedback, insights]
-        Twin[TwinService: profile, persona, twin persistence]
-        Simulation[SimulationService: scenarios, progress, results]
+        User[Account service: registration, password hashing, login tokens]
+        Analysis[Analysis service: failure clusters, feedback, insights]
+        Twin[Twin service: profile, persona, twin storage]
+        Simulation[Simulation service: scenarios, progress, results]
     end
 
     subgraph Video[Video analysis pipeline]
-        Decode[OpenCV: video metadata and sampled frames]
-        Audio[MoviePy: extract WAV]
-        Face[DeepFace: frame emotion and smile metrics]
-        Pose[MediaPipe Pose and Hands: posture and gesture metrics]
-        Voice[Librosa and SpeechRecognition: voice/audio and transcript features]
+        Decode[Video decoding: metadata and sampled frames]
+        Audio[Audio extraction from the video]
+        Face[Facial-emotion analysis and smile metrics]
+        Pose[Posture and gesture analysis]
+        Voice[Voice/audio and transcript analysis]
         Scores[Weighted scenario scores and behavioral profile]
-        Coach[GeminiCounsellor: narrative coaching JSON]
+        Coach[Narrative coaching report generation]
         Decode --> Face
         Decode --> Pose
         Audio --> Voice
@@ -84,19 +84,19 @@ flowchart LR
 
     subgraph TwinPipeline[Digital Twin pipeline]
         Schema[Questionnaire schema]
-        Builder[TwinProfileBuilder]
-        Persona[PersonaGenerator: Gemini]
-        TwinMemory[FeedbackMemoryManager: twin profile memory]
+        Builder[Profile builder]
+        Persona[Persona generation]
+        TwinMemory[Twin profile memory]
         Schema --> Builder
         Builder --> Persona
         Persona --> TwinMemory
     end
 
     subgraph SimulationPipeline[Simulation pipeline]
-        ScenarioGen[ScenarioGenerator: fixed 3 job, 3 investor, 4 dating scenarios]
-        TwinLLM[Digital Twin response: Gemini]
-        Counter[Recruiter, Investor, or Date agent: Gemini]
-        Referee[RefereeAgent: per-scenario grading]
+        ScenarioGen[Scenario generation: fixed 3 job, 3 investor, 4 dating scenarios]
+        TwinLLM[Digital Twin response]
+        Counter[Recruiter, investor, or date counter-party]
+        Referee[Per-scenario grading]
         ScenarioGen --> TwinLLM
         TwinLLM <--> Counter
         TwinLLM --> Referee
@@ -104,24 +104,24 @@ flowchart LR
     end
 
     subgraph Coaching[Post-simulation coaching]
-        Cluster[FailureClusterAnalyzer: Deep Agents/LangGraph when available, fallbacks]
-        Feedback[FeedbackGenerator: Gemini]
-        Memory[Semantic, episodic, and procedural LangGraph memory]
+        Cluster[Failure pattern analysis, with fallbacks when optional components are unavailable]
+        Feedback[User-facing feedback generation]
+        Memory[Semantic, episodic, and procedural memory]
         Cluster --> Feedback
         Cluster --> Memory
         Feedback --> Memory
     end
 
     subgraph Persistence[Configured persistence and fallbacks]
-        PG[(PostgreSQL when POSTGRES_URI is configured)]
-        Redis[(Redis cache/checkpointer when REDIS_URL is configured)]
-        File[(output/twins_store.json fallback for twins)]
-        RAM[(Process-local dictionaries and LangGraph in-memory stores)]
+        PG[(A relational database, when configured)]
+        Redis[(A distributed cache/checkpoint store, when configured)]
+        File[(A local file fallback for twins)]
+        RAM[(In-memory storage otherwise)]
     end
 
     subgraph Google[Google model services]
-        Gemini[Vertex AI Gemini via configured model names]
-        Embeddings[Optional Google text-embedding-004]
+        Gemini[Gemini models via a configured cloud AI project]
+        Embeddings[Optional text-embedding support]
     end
 
     UI --> Routes
@@ -161,20 +161,20 @@ flowchart LR
 
 ### 1. Login and mode selection
 
-The UI presents registration/login and then the onboarding choice. `/auth/register` and `/auth/login` call `UserService`; passwords are PBKDF2-HMAC hashed and successful login returns a JWT (or a development fallback token if PyJWT is unavailable). The browser keeps the token and user/twin IDs in `localStorage`. Twin and simulation routes require a bearer token; the video job routes themselves do not currently apply `require_auth`.
+The UI presents registration/login and then the onboarding choice. Registration and login are handled by the account service; passwords are hashed with a strong, salted algorithm, and successful login returns an authentication token (or a development fallback token if the standard token library isn't available). The browser keeps the token and user/twin IDs in local browser storage. Twin and simulation routes require that authentication token; the video job routes themselves do not currently enforce it.
 
 ### 2. Video upload and analysis
 
 Both the standalone video-coach experience and the Digital Twin video panel use the same analysis worker.
 
-1. The browser calls `POST /init-job` to allocate a job ID.
-2. In the coach experience, it optionally sends text context to `/save-context` and PDF/DOC/TXT context files to `/upload-context-file`.
-3. It sends the video to `POST /upload`. The route accepts MP4, AVI, MOV, MKV, WEBM, FLV, and WMV up to 500 MB, saves the upload to a temporary file, and starts `_run_analysis` in a daemon thread.
-4. The browser polls `GET /status/<job_id>`. When the job is done, it requests `GET /results/<job_id>`.
-5. `_run_analysis` extracts metadata and sampled frames using OpenCV, extracts audio with MoviePy, then analyzes facial expressions, posture/hand gestures, and voice/speech. It computes weighted scores and a basic behavioral profile, then calls `GeminiCounsellor` for the narrative report.
-6. The worker returns the result in the process-local `jobs` dictionary and deletes the temporary video and extracted WAV in its `finally` block.
+1. The browser calls a route to allocate a job ID.
+2. In the coach experience, it optionally sends text context and PDF/DOC/TXT context files.
+3. It uploads the video. The route accepts MP4, AVI, MOV, MKV, WEBM, FLV, and WMV up to 500 MB, saves the upload to a temporary file, and starts the analysis step in a background thread.
+4. The browser polls a status route. When the job is done, it requests the results.
+5. The background analysis step extracts metadata and sampled frames, extracts the audio track, then analyzes facial expressions, posture/hand gestures, and voice/speech. It computes weighted scores and a basic behavioral profile, then generates the narrative coaching report.
+6. The worker returns the result in an in-memory job registry and deletes the temporary video and extracted audio once finished, whether or not it succeeded.
 
-The web upload path samples every 90th frame by default (about every three seconds at 30 FPS). The CLI path in `main.py` is separate and uses the configuration file/default settings.
+The web upload path samples every 90th frame by default (about every three seconds at 30 FPS). A separate command-line tool exists for analyzing a local video file directly from a terminal, using its own configuration file or defaults.
 
 ### 3. Video analysis and initial coach report
 
@@ -185,59 +185,59 @@ The deterministic analyzers create measurable inputs; the counselor turns those 
 | Face | DeepFace emotion analysis over sampled frames | Emotion distribution/timeline, smile ratio, scenario scores |
 | Body | MediaPipe Pose and Hand Landmarkers | Head/spine proxy, shoulder alignment, openness, crossed-arm/confidence proxies, hand visibility and gesture activity |
 | Voice | Librosa plus SpeechRecognition | Pace, pitch, pauses, transcript and transcript-derived indicators when available |
-| Score | Weighted calculation in `BehaviorAnalysisAgent` | Job interview, business deal, and date probabilities with score breakdowns |
+| Score | A weighted scoring step combining all of the above | Job interview, business deal, and date probabilities with score breakdowns |
 | Coaching | Gemini counselor prompt | Three communication layers, strengths/weaknesses, scenario probabilities, improvement plan, key moments, and top priority |
 
 The coach UI renders the report and can export it to PDF. The Gemini report is a model-generated interpretation of extracted signals; the probabilities are assessments, not validated real-world outcome guarantees.
 
 ### 4. Questionnaire and Digital Twin creation
 
-The UI loads the public schema from `GET /twin/schema`. It contains three sections:
+The UI loads the public questionnaire schema from a dedicated route. It contains three sections:
 
 - **Behavioral model:** traits, introversion/extroversion, risk tendency, habits, communication/decision style, conflict response, self-described strengths and weaknesses.
 - **Cognitive/decision model:** career ambition, dating preferences, risk tolerance, values, investment and negotiation style, stress response, work preferences, goals, and narrative answers.
 - **Embodied self-assessment:** self-rated eye contact, posture, gestures, smile, voice confidence, plus nervous/confident tells and first-impression narrative.
 
-When the user submits, the UI sends `POST /twin/create` with at least eight non-empty answers and one or more completed video job IDs. The route merges available analysis results, then `TwinProfileBuilder` creates `behavioral_model`, `cognitive_model`, and `embodied_model`. The video-derived model includes posture/gesture metrics, emotion/timeline, voice metrics, transcript, counselor assessment, and key moments where those values exist.
+When the user submits, the UI sends the answers (at least eight non-empty) along with one or more completed video job IDs. The route merges available analysis results, then a profile-building step creates the behavioral, cognitive, and embodied models. The video-derived model includes posture/gesture metrics, emotion/timeline, voice metrics, transcript, counselor assessment, and key moments where those values exist.
 
-`PersonaGenerator` sends the structured profile to Gemini using `LLM_MODEL` (default `gemini-2.5-pro`). Its JSON result includes a persona summary, system prompt, personality dimensions, communication fingerprint, likely strengths/weaknesses, scenario behaviors, and embodied signal summary. `TwinService` stores the profile/persona and writes a profile to `FeedbackMemoryManager`.
+The structured profile is then sent to the configured Gemini model (Gemini 2.5 Pro by default) to generate a persona. Its result includes a persona summary, system prompt, personality dimensions, communication fingerprint, likely strengths/weaknesses, scenario behaviors, and embodied signal summary. The twin service stores the profile/persona and writes a profile into the long-term feedback memory.
 
 ### 5. Simulation options
 
-**Benchmark mode** is the default. `ScenarioGenerator.generate_all()` creates 10 scenario records: three job interviews, three investor pitches, and four dates. Each record contains an archetype, opening prompt, curveball, closing prompt, and success criteria. The target personas are currently selected from static archetype lists and given variations; the code does not ask an LLM to generate 10 entirely new target personas at setup time.
+**Benchmark mode** is the default. A scenario-generation step creates 10 scenario records: three job interviews, three investor pitches, and four dates. Each record contains an archetype, opening prompt, curveball, closing prompt, and success criteria. The target personas are currently selected from static archetype lists and given variations; the code does not ask an LLM to generate 10 entirely new target personas at setup time.
 
-**Targeted mode** uses the scenario description from the questionnaire. The UI calls `/twin/custom-persona` to generate a counter-party persona (optionally informed by generated scenario questions and answers), then starts `/simulation/begin` with `mode: "custom"`. A custom run uses the generated counter-party prompt and has a 50-response loop.
+**Targeted mode** uses the scenario description from the questionnaire. The UI requests a generated counter-party persona (optionally informed by generated scenario questions and answers), then starts the simulation in custom mode. A custom run uses the generated counter-party prompt and has a 50-response loop.
 
 ### 6. Simulation execution and grading
 
-`POST /simulation/begin` verifies the twin and starts background work. `SimulationService` stores a running simulation record, then uses `SimulationLoop.run_batch()` for benchmark scenarios with `SIM_MAX_WORKERS` workers (default 5). The browser polls `GET /simulation/<sim_id>` and displays completed conversations and scores.
+Starting a simulation verifies the twin and starts background work. The simulation service stores a running simulation record, then runs the benchmark scenarios concurrently, with a configurable worker limit (5 by default). The browser polls a status route and displays completed conversations and scores.
 
-For each benchmark scenario, the active `run_single()` path executes 50 loop iterations. Each iteration generates one twin response; the first 49 iterations also generate a counter-party response. Stage labels progress from opening to reaction, curveball, pressure, and closing. A `RefereeAgent` then grades the conversation on alignment, friction, outcome, and overall score, and returns a success/partial-success/failure verdict plus key moments and improvement tags.
+For each benchmark scenario, the active path executes 50 loop iterations. Each iteration generates one twin response; the first 49 iterations also generate a counter-party response. Stage labels progress from opening to reaction, curveball, pressure, and closing. A referee step then grades the conversation on alignment, friction, outcome, and overall score, and returns a success/partial-success/failure verdict plus key moments and improvement tags.
 
-The simulation model name comes from `SIM_LLM_MODEL`, falling back to `LLM_MODEL`, then `gemini-2.5-pro`. The twin, counter-party, and referee use the configured Vertex AI client. Model calls are logged by `agent/token_logger.py`.
+The simulation uses a separately configurable model, falling back to the same default Gemini model used elsewhere if not set. The twin, counter-party, and referee all use the same configured cloud AI project. Every model call is logged for cost and usage tracking.
 
 ### Model and runtime configuration
 
 | Setting | Used by | Current fallback / behavior |
 |---|---|---|
-| `COUNSELLOR_MODEL` | Video coaching report | Defaults to `gemini-2.5-pro` |
-| `LLM_MODEL` | Twin persona, feedback/cluster analysis, default simulation model | Defaults to `gemini-2.5-pro` |
-| `SIM_LLM_MODEL` | Twin dialogue, counter-party dialogue, referee | Falls back to `LLM_MODEL`, then `gemini-2.5-pro` |
-| `VERTEX_PROJECT`, `VERTEX_LOCATION` | Gemini clients | Default to `ai-ml-integrations` and `us-central1` in these modules |
-| `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CREDENTIALS_JSON`, `GCP_*`, `GOOGLE_API_KEY` | Google client authentication | `app.py` supports a credentials file, JSON environment variable, individual service-account fields, or API-key fallback |
-| `SIM_MAX_WORKERS` | Concurrent benchmark scenarios | Defaults to `5` |
-| `POSTGRES_URI`, `REDIS_URL` | Optional persistence, caching, and LangGraph memory | Missing or unavailable services fall back to in-process storage where implemented |
+| Coaching model | Video coaching report | Defaults to Gemini 2.5 Pro |
+| General-purpose model | Twin persona, feedback/cluster analysis, default simulation model | Defaults to Gemini 2.5 Pro |
+| Simulation-specific model | Twin dialogue, counter-party dialogue, referee | Falls back to the general-purpose model, then Gemini 2.5 Pro |
+| Cloud project and region | Gemini clients | Default to a preconfigured project and region in these modules |
+| Google credentials (file path, inline JSON blob, individual service-account fields, or a plain API key) | Google client authentication | The web server supports any of these forms, trying each in turn |
+| Concurrent benchmark workers | Concurrent benchmark scenarios | Defaults to 5 |
+| Database and cache connection settings | Optional persistence, caching, and long-term memory | Missing or unavailable services fall back to in-process storage where implemented |
 
-The Flask web experience starts from `app.py`. `main.py` is a separate command-line entry point that loads `config.json` (or a supplied config), analyzes a local video, prints the report to the terminal, and can save text output under `output/`.
+The web experience starts from the main server entry point. A separate command-line entry point loads a configuration file (or a supplied one), analyzes a local video, prints the report to the terminal, and can save text output to a local output folder.
 
 ### 7. Post-simulation coaching and memory
 
-After the simulation reaches `completed`, the UI automatically calls `POST /analysis/<sim_id>`.
+After the simulation reaches a completed state, the UI automatically requests the post-simulation analysis.
 
-1. `AnalysisService` gets the scenario results and twin persona.
-2. `FailureClusterAnalyzer` computes/organizes patterns and uses Deep Agents/LangGraph when available, with fallback paths when optional components are unavailable. Its memory tools can retrieve the twin profile, prior episodes, and similar failure notes.
-3. `FeedbackGenerator` turns the cluster report into a user-facing debrief: aggregate success statistics, category verdicts, failure breakdown, personality insights, a priority behavior change, and a 30-day practice plan.
-4. `AnalysisService` returns the report and starts background persistence/memory updates. `GET /insights/<user_id>` exposes aggregated past coaching insights to the authenticated owner.
+1. The analysis service gets the scenario results and twin persona.
+2. A failure-pattern analysis step computes/organizes patterns, using more advanced reasoning/memory tooling when available, with fallback paths when optional components are unavailable. Its memory tools can retrieve the twin profile, prior episodes, and similar failure notes.
+3. A feedback-generation step turns the cluster report into a user-facing debrief: aggregate success statistics, category verdicts, failure breakdown, personality insights, a priority behavior change, and a 30-day practice plan.
+4. The analysis service returns the report and starts background persistence/memory updates. A separate route exposes aggregated past coaching insights to the authenticated owner.
 
 ## Live Digital Twin — Real-Time Call (`live-video` branch)
 
@@ -302,17 +302,17 @@ flowchart TD
 | Data | Current location / behavior |
 |---|---|
 | Uploaded video and extracted audio | Temporary files; deleted when video analysis finishes or fails |
-| Video job status/results and user context | Flask process memory (`jobs`, `user_contexts`); not durable across process restart |
-| User accounts | PostgreSQL when `POSTGRES_URI` is set; otherwise process-memory dictionaries |
-| Twins | PostgreSQL when configured; otherwise process-memory dictionary plus `output/twins_store.json` |
-| Simulation records/results | PostgreSQL when configured; otherwise process memory; active/progress values also use `RedisCache` |
-| Analysis documents | PostgreSQL when configured; otherwise process memory; cached by `RedisCache` |
-| Feedback memory | Redis/Postgres LangGraph checkpointer when configured and available; otherwise `InMemorySaver`; long-term store uses `PostgresStore` or `InMemoryStore` (optionally with embeddings) |
-| Pinecone/Weaviate wrapper | Implemented in `agent/memory/vector_store.py`, but not currently constructed or called by the app's twin/feedback flow |
-| Live Digital Twin sessions | Flask process memory only, keyed by a short session id; no Postgres/Redis path — not durable across a restart, same caveat as video jobs above |
-| Vyakti Streak (live-call gamification) | A small JSON file on disk (loaded into memory at startup, rewritten on every recorded session) — the only live-call data that persists across a restart |
+| Video job status/results and user context | In-memory only; not durable across a process restart |
+| User accounts | A relational database when configured; otherwise in-memory only |
+| Twins | A relational database when configured; otherwise an in-memory record plus a local file fallback |
+| Simulation records/results | A relational database when configured; otherwise in-memory; active/progress values also use a distributed cache when available |
+| Analysis documents | A relational database when configured; otherwise in-memory; cached by the same distributed cache when available |
+| Feedback memory | A distributed cache or database-backed checkpoint store when configured and available; otherwise an in-memory equivalent; the long-term store works the same way, optionally with text embeddings |
+| A vector-database wrapper | Implemented but not currently constructed or called by the app's twin/feedback flow |
+| Live Digital Twin sessions | In-memory only, keyed by a short session id; no database path — not durable across a restart, same caveat as video jobs above |
+| Vyakti Streak (live-call gamification) | A small local file on disk (loaded into memory at startup, rewritten on every recorded session) — the only live-call data that persists across a restart |
 
-The short-term LangGraph checkpointer and long-term LangGraph store are distinct from the standalone `RedisCache` and the Pinecone/Weaviate wrapper. A Redis or PostgreSQL fallback in one of these components does not make process-local job state durable.
+The short-term and long-term memory stores used for feedback are distinct from the standalone distributed cache and the vector-database wrapper mentioned above. A fallback in one of these components does not make in-memory job state durable.
 
 ## Route Map
 
@@ -332,29 +332,26 @@ The short-term LangGraph checkpointer and long-term LangGraph store are distinct
 These distinctions matter when interpreting the UI and the existing architecture notes:
 
 - **The benchmark is 10 scenarios, not 1,000.** Each benchmark scenario currently runs 50 twin response iterations (and 49 counter-party replies); it does not generate a thousand scenarios.
-- **The four-stage LangGraph graph is not the benchmark execution path.** `SimulationLoop` builds an opening/reaction/curveball/closing graph, but `run_batch()` calls `run_single()`, which executes `_extended_run()` instead. The normal benchmark therefore follows the longer 50-iteration loop, including a pressure stage.
+- **The longer, four-stage graph of reasoning steps is not the benchmark execution path.** A separate opening/reaction/curveball/closing graph exists, but the actual benchmark path executes the longer 50-iteration loop described above, including a pressure stage.
 - **The target profiles are archetype templates.** The 10 benchmark counter-parties use static archetype data plus variations; the LLM generates their dialogue, not a new target-persona profile for each benchmark at scenario-generation time.
-- **Pinecone/Weaviate evaluation is latency-only in the wrapper.** `VectorMemoryStore` can select the faster available service from a single latency check, but it does not measure retrieval accuracy, and current app services do not wire that class into the memory flow.
-- **Dataset files are not used for training by the runtime.** The current application code does not load the `datasets/` contents into a training or inference pipeline. `download_coco.py` is a dataset download/export utility.
-- **OpenPose is not the active pose analyzer.** The web analysis imports MediaPipe Tasks Pose and Hand Landmarkers. The `external_repos/openpose` folder is not imported in the application path.
-- **Eye contact and micro-expression claims need care.** The questionnaire collects self-reported eye contact, but the video pipeline does not calculate gaze/eye-contact tracking. DeepFace classifies sampled-frame emotion; it is not a dedicated micro-expression model. Posture/spine/confidence values are landmark-derived proxies.
-- **The browser contains draft and stop requests without matching Flask routes.** The UI calls `/twin/draft` and `/simulation/<sim_id>/stop`, but `app.py` does not register those endpoints; those actions currently cannot complete through the shown backend.
-- **Job data is process-local and video routes are unauthenticated.** Do not assume a video job survives a restart or that `/upload` and `/results/<job_id>` enforce account ownership; only the twin/simulation/coaching route groups use the auth decorator in the current code.
-- **Live Digital Twin sessions are process-local too, and require a single gunicorn worker.** `/live/*` session state lives in the same kind of in-memory dict as video jobs — it does not survive a restart, and the deployment is pinned to one worker process so this state isn't scattered across processes.
-- **Live frame analysis intentionally drops frames under load.** `/live/frame` keeps only the most recently received frame per session and discards any that arrive while a prior one is still being analyzed — the coaching signal is a rolling average, not a frame-complete record of the call, by design.
+- **The alternative vector-database evaluation is latency-only.** It can select the faster available service from a single latency check, but it does not measure retrieval accuracy, and current app services do not wire that option into the memory flow.
+- **Dataset files are not used for training by the runtime.** The current application code does not load the bundled datasets into a training or inference pipeline; a separate utility only downloads/exports one of them.
+- **An older open-source pose library is not the active pose analyzer.** The web analysis uses a newer pose and hand landmark pipeline instead; the older library is present in the repository but not imported in the application path.
+- **Eye contact and micro-expression claims need care.** The questionnaire collects self-reported eye contact, but the video pipeline does not calculate gaze/eye-contact tracking. The facial-emotion step classifies sampled-frame emotion; it is not a dedicated micro-expression model. Posture/spine/confidence values are landmark-derived proxies.
+- **The browser contains draft and stop requests without matching server routes.** The UI calls a draft-saving route and a stop-simulation route that the server does not register; those actions currently cannot complete through the shown backend.
+- **Job data is in-memory only and video routes are unauthenticated.** Do not assume a video job survives a restart or that the upload/results routes enforce account ownership; only the twin/simulation/coaching route groups use the authentication check in the current code.
+- **Live Digital Twin sessions are in-memory too, and require a single web-server process.** Live-call session state lives in the same kind of in-memory tracking as video jobs — it does not survive a restart, and the deployment is pinned to one process so this state isn't scattered across processes.
+- **Live frame analysis intentionally drops frames under load.** The frame-ingestion route keeps only the most recently received frame per session and discards any that arrive while a prior one is still being analyzed — the coaching signal is a rolling average, not a frame-complete record of the call, by design.
 
-## Main Code Map
+## Where Things Live
 
-| Concern | Main files |
-|---|---|
-| Flask routes, job lifecycle, model credential setup | `app.py` |
-| Browser onboarding, video flows, questionnaire, simulation, report views | `templates/index.html` |
-| Video decoding | `agent/video_processor.py` |
-| Video analysis, weighted scores, behavioral profile | `agent/behavior_agent.py`, `agent/analyzers/` |
-| Gemini video coach | `agent/analyzers/gemini_counsellor.py` |
-| Twin questionnaire, profile, persona | `agent/twin/form_schema.py`, `agent/twin/profile_builder.py`, `agent/twin/persona_generator.py` |
-| User, twin, simulation, feedback services | `services/user_service.py`, `services/twin_service.py`, `services/simulation_service.py`, `services/analysis_service.py` |
-| Scenario generation, counter-parties, simulation, referee | `agent/simulation/scenario_generator.py`, `agent/simulation/counter_agents.py`, `agent/simulation/simulation_loop.py`, `agent/simulation/referee.py` |
-| Failure analysis, feedback, and LangGraph memory | `agent/feedback/cluster_analyzer.py`, `agent/feedback/feedback_generator.py`, `agent/feedback/memory_manager.py` |
-| Optional standalone cache/vector DB adapters | `agent/memory/redis_cache.py`, `agent/memory/vector_store.py` |
-| Live Digital Twin: session orchestration, question/persona generation, live chat, judging, use cases, streaks | `agent/live/live_session_manager.py`, `agent/live/live_question_generator.py`, `agent/live/live_persona_builder.py`, `agent/live/live_twin_chat.py`, `agent/live/live_behavior_tracker.py`, `agent/live/live_judge.py`, `agent/live/use_cases.py`, `agent/live/streak_manager.py` |
+Rather than list individual files, here is a plain-English map of which conceptual area of the codebase is responsible for what:
+
+- **The web server and page templates** handle every HTTP route, the job lifecycle for video analysis, and model/credential setup; the browser-side page contains the onboarding flow, video coaching UI, questionnaire, simulation tabs, live-call UI, and all report views.
+- **The video analysis pipeline** handles video decoding, frame sampling, audio extraction, facial-emotion analysis, posture/gesture analysis, voice/speech analysis, the weighted scoring step, and the narrative coaching report generation.
+- **The Digital Twin pipeline** holds the questionnaire schema, the profile-building step that turns a questionnaire plus video results into structured models, and the persona-generation step.
+- **The domain service layer** covers account management, twin storage, simulation orchestration, and post-simulation feedback/analysis.
+- **The simulation pipeline** covers scenario generation, the counter-party roleplay step, the simulation loop itself, and the referee grading step.
+- **The post-simulation coaching layer** covers failure-pattern analysis, feedback generation, and the semantic/episodic/procedural memory used to recall past sessions.
+- **Optional standalone adapters** exist for a distributed cache and for an alternative vector database, independent of the main persistence path above.
+- **The Live Digital Twin call feature** has its own self-contained area covering session orchestration, the follow-up question generator, the persona builder, the live chat step, the background behavioral-signal tracker, the end-of-call judge, the use-case library, and the streak/progression tracker.
