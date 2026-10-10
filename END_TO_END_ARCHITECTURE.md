@@ -247,54 +247,55 @@ This is a separate, self-contained flow from the benchmark/custom simulation abo
 flowchart TD
     A[Log in] --> B[Pick a practice use case]
     B --> C[Describe the real person you're about to face]
-    C --> D["POST /live/questions — LLM asks 22-26 follow-ups about THAT PERSON"]
-    D --> E[User answers follow-ups]
-    E --> F["POST /live/build — LiveTwinPersonaBuilder embodies that person"]
-    F --> G[Live call starts: webcam + mic stream]
-    G --> H["POST /live/message every turn — LiveTwinChatAgent replies in character"]
-    G --> I["POST /live/frame every ~2.5s — background: DeepFace + 3x MediaPipe Tasks"]
-    G --> J["POST /live/audio every ~7s — background: Librosa + SpeechRecognition"]
-    H --> K[User clicks End & Get Judged]
+    C --> D[The app asks 22-26 natural follow-up questions about that person]
+    D --> E[User answers the follow-ups]
+    E --> F[A persona of that person is built: personality, communication style, opening line]
+    F --> G[Live call starts: webcam and microphone stream begin]
+    G --> H[Every turn: the digital twin replies in character]
+    G --> I[Every few seconds, in the background: facial expression, posture, and gesture are analyzed]
+    G --> J[Every several seconds, in the background: voice tone, pace, and speech are analyzed]
+    H --> K[User clicks End and Get Judged]
     I --> K
     J --> K
-    K --> L["POST /live/end — LivePerformanceJudge grades the REAL live performance"]
-    L --> M[Vyakti Streak updated: day streak, Growth Hexagon history, difficulty level]
-    M --> N[Coaching report: one-line judgment summary, Confidence Score, Growth Hexagon, moment-by-moment feedback]
+    K --> L[The real conversation is graded using the transcript and every measured signal]
+    L --> M[The user's streak, growth history, and difficulty level are updated]
+    M --> N[Coaching report shown: one-line judgment, Confidence Score, Growth Hexagon, moment-by-moment feedback]
 ```
 
-### Phase-by-phase
+### Phase by phase
 
-| Phase | Route | Module | What happens |
-|---|---|---|---|
-| Use case selection | `GET /use-cases`, `GET /streak/<id>`, `GET /streak` | `agent/live/use_cases.py`, `agent/live/streak_manager.py` | User picks one of 10 domain use cases (job interviews, dating, boardrooms, crisis PR, medical consultations, etc.); each use case's current streak/level shows on its card |
-| Describe → follow-ups | `POST /live/questions` | `agent/live/live_question_generator.py` (`LiveTwinQuestionGenerator`) | User free-types a description of the person they're about to face; Gemini generates 22-26 natural follow-up questions **about that person** (identity, personality, communication style, pressure points, decision-making style, non-verbal tendencies, stakes) |
-| Build persona | `POST /live/build` | `agent/live/live_persona_builder.py` (`LiveTwinPersonaBuilder`) | Combines the description + answers (+ use-case context + current difficulty level) into a persona: name, role, personality, a live-roleplay `system_prompt` (short spoken-style turns), and an `opening_line` |
-| Live conversation | `POST /live/message` | `agent/live/live_twin_chat.py` (`LiveTwinChatAgent`) | Generates the twin's next in-character reply, optionally colored by a live `behavior_hint` (e.g. "tense/closed posture; mostly neutral expression; speaking pace: fast") derived from the user's own measured signals so far |
-| Live visual signal capture | `POST /live/frame` (fire-and-forget, ~every 2.5s) | `agent/live/live_session_manager.py` → `agent/live/live_behavior_tracker.py` → `agent/analyzers/facial_expression.py`, `body_language.py`, `face_landmark_analyzer.py` | DeepFace (emotion, mtcnn detector) + MediaPipe Pose/Hand/FaceLandmarker Tasks analyze each frame: posture, openness, confidence signals, hand gesture activity, emotion distribution/smile ratio, eyebrow blendshapes |
-| Live voice signal capture | `POST /live/audio` (fire-and-forget, ~every 7s) | same tracker → `agent/analyzers/voice_speech.py` | Librosa (pitch/energy/pace/pauses) + SpeechRecognition (transcript, filler words) per audio chunk; transcript fragments accumulate for the final transcript |
-| End & judge | `POST /live/end` | `agent/live/live_judge.py` (`LivePerformanceJudge`) | Grades the REAL conversation: full transcript + aggregated behavioral signals + a turn-by-turn breakdown (what the user's face/posture/eyebrows were doing at each of their turns) → one-line fit summary, 7 per-dimension 1-10 scores, Growth Hexagon (6 axes), moment-by-moment facial/eyebrow/posture notes, strengths/areas to improve/best-worst moment/coaching tips |
-| Vyakti Streak | (invoked from `/live/end`) | `agent/live/streak_manager.py` (`VyaktiStreakManager`) | Per `(user_id, use_case_id)`: day-streak tracking, rolling Growth Hexagon history, and algorithmic difficulty scaling — Level 1 Novice → Level 2 Neutral → Level 3 Hostile/Mastery, auto-graduating after a sustained streak **and** an average Confidence Score ≥ 55, awarding a use-case-specific badge (e.g. "Boardroom Ready", "Pitch Perfect") |
+**1. Use case selection.** Right after logging in, the user picks one of ten domain scenarios — job interviews, dating, a difficult conversation with a girlfriend or parents, regulatory audits, medical consultations, venture-capital pitching, crisis PR interviews, diplomatic negotiation, or corporate boardrooms. Each scenario card shows the user's current streak and difficulty level for that specific use case.
 
-### Use Case Library and difficulty scaling
+**2. Describing the person.** The user freely types who they are about to face — a recruiter, an investor, a date, a difficult boss. The app sends this description to Gemini, which responds with 22 to 26 natural, conversational follow-up questions about that specific person: their personality, communication style, attitude, values, pet peeves, decision-making style, body language tendencies, and what's at stake for them in this interaction. The questions are about the other person, not about the user.
 
-`agent/live/use_cases.py` defines 10 fixed use cases (dating, job interviews, girlfriend/parent conversations, regulatory audits, medical consultations, VC pitching, crisis PR, diplomatic negotiation, corporate boardrooms), each carrying a `context_prompt` (layered into persona building) and a `judge_focus` (layered into judging) — the underlying dynamic persona/question/judge pipeline itself is unchanged per use case, only these two focused instruction blocks differ.
+**3. Building the persona.** Once the user answers those follow-ups, everything collected — the description, the answers, the chosen use case's context, and the user's current difficulty level — is sent to Gemini again, which designs a persona: a name, a role, a personality summary, a communication style, and a detailed instruction describing how that person should talk and react during a live, spoken conversation (short, natural turns, never breaking character). It also writes the very first line the persona will say when the call begins.
 
-The same file also defines `TWIN_LEVELS` (1=Novice, 2=Neutral, 3=Hostile/Mastery): each level sets a target `openness_level`/`pressure_level` (1-10) and a behavior instruction appended to the persona's `system_prompt` (e.g. Novice twins give gentle hints and stay patient; Hostile twins interrupt rambling, push back hard, and test composure). The active level comes from the user's current Vyakti Streak for that use case.
+**4. The live conversation.** The webcam and microphone turn on. Every time the user speaks or types a reply, it is sent to the model, which answers back in character, subtly adjusted by a live read of how the user is coming across (for example, tense posture, a mostly neutral expression, or a fast speaking pace) so the persona reacts the way a real person subconsciously would.
+
+**5. Live behavioral signal capture.** While the conversation is happening, the app is also quietly analyzing the user in the background:
+   - Every few seconds, a video frame is captured and analyzed for facial expression and emotion, posture and openness, confidence signals, hand gesture activity, and eyebrow movement.
+   - Every several seconds, a short audio clip is captured and analyzed for pitch, energy, speaking pace, pauses, and a running transcript of what was said.
+   
+   Both of these run in the background rather than blocking the conversation — if a frame takes too long to analyze, it's simply dropped in favor of a fresher one, since a slightly stale behavioral sample doesn't hurt the coaching average. Spoken audio is never dropped, since losing someone's actual words would be unacceptable.
+
+**6. Ending the call and judging performance.** When the user clicks "End & Get Judged," a neutral judge model reviews the full transcript, every aggregated behavioral signal from the call, and a turn-by-turn breakdown of what the user's face, posture, and eyebrows were doing at each of their own turns. It produces a short written verdict on how well the user's approach fit the situation, a score for each of seven performance dimensions, a six-axis "growth" profile, specific moment-by-moment notes on what went right or wrong, and concrete coaching tips.
+
+**7. Streak and progression.** Each completed call updates the user's streak for that specific use case: consecutive days practiced, a rolling history of their six-axis growth scores, and an automatic difficulty upgrade — from a patient, encouraging opponent, to a neutral and professional one, to a demanding, interruption-prone one that actively tests composure — once the user sustains a streak at a strong enough performance level. Reaching the hardest tier unlocks a use-case-specific badge (for example, "Boardroom Ready" or "Pitch Perfect").
 
 ### Scoring shown in the coaching report
 
-- **One-line judgment summary** (`situation_fit_summary`): the judge LLM's qualitative read on whether the user's approach fit the specific situation. Shown as plain text, no numeric score alongside it (the numeric "X/10 — verdict" score was removed from the UI — showing it next to the Confidence Score confused users even once the two were made numerically consistent).
-- **Vyakti Confidence Score (0-100)**: deterministic, not a second free-floating LLM number — computed server-side as the average of the 7 per-dimension 1-10 scores (voice & tone, posture & body language, facial expressions, eyebrows & micro-expressions, confidence, talking quality, hand movements), ×10. This was a real bug fix: the judge LLM reliably confused this field's 0-100 scale with the 1-10 scale used everywhere else in its own JSON schema (e.g. emitting `5` instead of `~50`), so the number is now always recomputed server-side rather than trusted from the model.
-- **Growth Hexagon (6 axes)**: composure under pressure, vocal resonance/control, posture & openness, facial congruence, conciseness & clarity, active listening markers — tracked per use case across sessions via the Vyakti Streak's rolling history.
+- **One-line judgment summary:** a short, qualitative read from the judge on whether the user's overall approach fit the specific situation they described. It is shown as plain text, without a numeric score next to it — showing a second, differently-scaled number alongside the Confidence Score was confusing even after the two were made consistent with each other.
+- **Vyakti Confidence Score (0–100):** a single composite number. Rather than trusting a second, independently generated number from the model (which was found to reliably confuse its own 0–100 scale with the 1–10 scale used for every other score, a real bug that has since been fixed), this score is now always calculated directly from the average of the seven individual performance-dimension scores, scaled up to 100.
+- **Growth Hexagon (six axes):** composure under pressure, vocal tone and control, posture and openness, how well facial expression matched the conversation's tone, conciseness and clarity, and active-listening behavior — tracked over time, per use case, as part of the user's ongoing streak.
 
-### Operational characteristics (single-process, 4-vCPU deployment)
+### How this holds up in production
 
-- **In-memory, process-local sessions.** `LiveTwinSessionManager._sessions` is a plain Python dict keyed by a 12-char session id; it does not survive a process restart (no Postgres/Redis path for live sessions, unlike twins/simulations/analysis documents above).
-- **Single gunicorn worker is required.** Job/user/simulation AND live-session state all live in this same kind of process-local dict, so the deployed Supervisor config is pinned to `--workers 1` (with `--threads 8` for concurrency) — running more worker processes would scatter session state across processes and break everything from status polling to live calls.
-- **`/live/frame` and `/live/audio` are genuinely asynchronous at the server, not just by convention.** A single frame's full analysis (DeepFace + 3 sequential MediaPipe Tasks models) measured 10-200+ seconds under load on this 4-vCPU box — far longer than the browser's ~2.5s capture interval. Running that synchronously inside the request handler blocked a shared worker-thread-pool slot long enough to starve `/live/message` entirely in some sessions (confirmed via telemetry: an entire live call with zero completed `LiveTwinChatAgent` calls). Both routes now hand the actual analysis off to a dedicated background thread per session, returning immediately; `ingest_frame()` additionally drops any frame that arrives while one is already being processed (a stale sample is acceptable for coaching averages, an ever-growing backlog is not), while `ingest_audio()` processes every chunk (losing spoken words is not acceptable).
-- **Native library thread pools are capped to 1.** TensorFlow (DeepFace)/OpenCV/numpy's BLAS backend each try to use all available CPU cores for their own internal thread pool by default; with 8 concurrent gthread workers this oversubscribed the VPS's 4 vCPUs badly. `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, `TF_NUM_INTRAOP_THREADS`, `TF_NUM_INTEROP_THREADS`, and `cv2.setNumThreads(1)` are all forced to 1 so Python-level thread concurrency is the only parallelism in play.
-- **App-wide numpy-safe JSON responses.** DeepFace returns emotion scores as `numpy.float32`, which the default JSON encoder cannot serialize — this previously hard-crashed every `/live/end` response once DeepFace was actually working. `app.py` installs a custom Flask JSON provider that coerces any stray `numpy` scalar/array to a native Python type before serializing, as a safety net beyond casting at the analyzer source.
-- **Browser-side TTS reliability.** Twin replies are spoken via `speechSynthesis.speak()`; a known Chrome bug can garbage-collect an utterance mid-speech if nothing keeps a reference to it. The client keeps a persistent reference and calls `speechSynthesis.cancel()` before each new utterance to clear any stuck queue state, with error logging instead of a silently swallowed failure.
+- **Everything about an in-progress call lives only in server memory** while the call is happening — it does not survive a server restart, the same way an in-progress video-analysis job does not. A separate small file on disk does persist each user's streak history across restarts.
+- **The server intentionally runs as a single process,** because conversation, job, and call state all live in that same in-memory fashion; running multiple processes would scatter a single user's session across them unpredictably.
+- **Frame and audio analysis happen fully in the background**, not as part of the request that the browser is waiting on. Earlier, a single frame's full analysis (checking facial expression, posture, hands, and eyebrows together) could take anywhere from several seconds to several minutes under load — far longer than how often the browser was sending new frames — which blocked the shared pool of request-handling capacity badly enough that live chat replies would occasionally never arrive in time at all. Moving this analysis fully off the request path, and deliberately dropping a stale frame rather than queuing it, fixed that.
+- **The underlying machine-learning libraries used for this analysis are explicitly limited to one thread each,** since by default they each try to use every available processor core on their own — running several of them at once, per request, on a modest server quickly overwhelmed it and made everything slower, not faster.
+- **Responses are protected against a data-type serialization bug** where the facial-emotion analysis library occasionally returns numbers in a format the web framework's default response encoder cannot handle, which used to crash the very last step of every call (the final judgment) once that analysis path was actually working correctly. A safety net was added so this class of error can no longer take down a response.
+- **Spoken replies from the digital twin are read aloud in the browser.** A known browser quirk can silently cut off that spoken audio partway through if nothing keeps it "alive" for its full duration; this is now guarded against, along with basic logging so a future failure of this kind is visible instead of silent.
 
 ## Data and Persistence Boundaries
 
@@ -308,8 +309,8 @@ The same file also defines `TWIN_LEVELS` (1=Novice, 2=Neutral, 3=Hostile/Mastery
 | Analysis documents | PostgreSQL when configured; otherwise process memory; cached by `RedisCache` |
 | Feedback memory | Redis/Postgres LangGraph checkpointer when configured and available; otherwise `InMemorySaver`; long-term store uses `PostgresStore` or `InMemoryStore` (optionally with embeddings) |
 | Pinecone/Weaviate wrapper | Implemented in `agent/memory/vector_store.py`, but not currently constructed or called by the app's twin/feedback flow |
-| Live Digital Twin sessions | Flask process memory only (`agent/live/live_session_manager.py`'s `_sessions` dict); no Postgres/Redis path — not durable across a restart, same caveat as video jobs above |
-| Vyakti Streak (live-call gamification) | `output/vyakti_streaks.json` (loaded into an in-memory dict at startup, rewritten on every recorded session) — the only live-call data that persists across a restart |
+| Live Digital Twin sessions | Flask process memory only, keyed by a short session id; no Postgres/Redis path — not durable across a restart, same caveat as video jobs above |
+| Vyakti Streak (live-call gamification) | A small JSON file on disk (loaded into memory at startup, rewritten on every recorded session) — the only live-call data that persists across a restart |
 
 The short-term LangGraph checkpointer and long-term LangGraph store are distinct from the standalone `RedisCache` and the Pinecone/Weaviate wrapper. A Redis or PostgreSQL fallback in one of these components does not make process-local job state durable.
 
