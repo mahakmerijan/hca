@@ -935,6 +935,23 @@ def live_audio():
     return jsonify({"ok": result is not None})
 
 
+@app.route("/live/transcribe", methods=["POST"])
+@require_auth
+def live_transcribe():
+    """POST { audio (base64), mimetype? } → { text }. Fallback for browsers without working SpeechRecognition."""
+    from agent.live.live_transcriber import transcribe_audio_b64, TranscriptionError
+    data = request.get_json(force=True)
+    audio = data.get("audio")
+    if not audio:
+        return jsonify({"error": "audio is required"}), 400
+    try:
+        text = transcribe_audio_b64(audio, mimetype=data.get("mimetype", ""))
+    except TranscriptionError as e:
+        print(f"[live_transcribe] {e}")
+        return jsonify({"error": "Could not transcribe audio. Please try again or type your reply."}), 502
+    return jsonify({"text": text})
+
+
 @app.route("/live/end", methods=["POST"])
 @require_auth
 def live_end():

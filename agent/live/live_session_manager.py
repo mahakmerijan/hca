@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from agent.live.live_question_generator import LiveTwinQuestionGenerator
+from agent.live.live_question_generator import LiveTwinQuestionGenerator, normalize_gender
 from agent.live.live_persona_builder import LiveTwinPersonaBuilder
 from agent.live.live_twin_chat import LiveTwinChatAgent
 from agent.live.live_behavior_tracker import LiveBehaviorTracker
@@ -95,6 +95,10 @@ class LiveTwinSessionManager:
                 use_case=use_case,
                 level=session.get("level", 1),
             )
+        # The user's explicit answer drives the live-call voice, overriding anything the LLM inferred.
+        gender = normalize_gender(session["answers"].get("gender"))
+        if gender:
+            persona["gender"] = gender
         session["persona"] = persona
         session["phase"] = "live_chat"
 

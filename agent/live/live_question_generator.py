@@ -14,6 +14,7 @@ persona is as accurate and specific as possible.
 
 import json
 import os
+import re
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -58,7 +59,33 @@ than 22). Each object must have:
   "placeholder": "short example answer hint",
   "required": true
 }
-No preamble, no markdown — pure JSON array."""
+No preamble, no markdown — pure JSON array.
+Do NOT ask about the person's gender — that is always asked separately."""
+
+# Always asked first and compulsory: the twin's live-call voice is matched to it.
+GENDER_QUESTION = {
+    "id": "gender",
+    "question": "Is this person male or female?",
+    "type": "choice",
+    "options": ["Male", "Female"],
+    "required": True,
+}
+
+_GENDER_PATTERN = re.compile(r"\b(gender|male or female|man or (a )?woman)\b", re.IGNORECASE)
+
+
+def normalize_gender(value) -> Optional[str]:
+    gender = str(value or "").strip().lower()
+    return gender if gender in ("male", "female") else None
+
+
+def with_gender_question(questions: list) -> list:
+    """Prepend the compulsory gender question and drop any LLM-generated duplicates."""
+    rest = [
+        q for q in questions
+        if q.get("id") != GENDER_QUESTION["id"] and not _GENDER_PATTERN.search(str(q.get("question", "")))
+    ]
+    return [dict(GENDER_QUESTION)] + rest
 
 
 class LiveTwinQuestionGenerator:
@@ -72,6 +99,9 @@ class LiveTwinQuestionGenerator:
 
     def generate_questions(self, description: str, user_id: Optional[str] = None, use_case: Optional[dict] = None) -> list:
         """Given the user's description of the person they'll face, return follow-up questions."""
+        return with_gender_question(self._generate(description, user_id=user_id, use_case=use_case))
+
+    def _generate(self, description: str, user_id: Optional[str] = None, use_case: Optional[dict] = None) -> list:
         if not self.client:
             return self._fallback_questions()
 
@@ -111,7 +141,6 @@ class LiveTwinQuestionGenerator:
             if text.startswith("json"):
                 text = text[4:].strip()
 
-            import re
             m = re.search(r'\[.*\]', text, re.DOTALL)
             if m:
                 text = m.group(0)

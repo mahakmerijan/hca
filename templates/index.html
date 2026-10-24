@@ -271,6 +271,7 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 .welcome-skip{padding:10px 22px;background:transparent;border:1px solid #333a50;color:#c8cce0;border-radius:10px;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s}
 .welcome-skip:hover{border-color:#7c6af6;color:#a599ff}
 </style>
+<link rel="stylesheet" href="/static/guided-tour.css">
 </head>
 <body>
 
@@ -349,6 +350,21 @@ footer{padding:28px;text-align:center;color:var(--muted);font-size:.76rem}
 </div>
 
 <button id="btn-logout" onclick="logout()">Log Out</button>
+<button type="button" id="tour-launch" data-testid="tutorial-launch-button" hidden>Show tutorial</button>
+<div id="tour-overlay" data-testid="tutorial-overlay" hidden>
+  <div id="tour-spotlight" aria-hidden="true"></div>
+  <section id="tour-dialog" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-description">
+    <p id="tour-progress" aria-live="polite"></p>
+    <h2 id="tour-title"></h2>
+    <p id="tour-description"></p>
+    <div class="tour-actions">
+      <button type="button" id="tour-skip" data-testid="tutorial-skip-button">Skip tutorial</button>
+      <button type="button" id="tour-back" data-testid="tutorial-back-button">Back</button>
+      <button type="button" id="tour-next" data-testid="tutorial-next-button">Next</button>
+    </div>
+    <p id="tour-storage-note" role="status"></p>
+  </section>
+</div>
 
 <div id="mode-video" style="display:none">
 <header>
@@ -946,6 +962,9 @@ function resetUI(){
 .btn-primary:disabled,.btn-outline:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
 .voice-input-wrap{position:relative}
 .voice-input-wrap textarea{padding-right:44px !important}
+.lt-voice-transcript{margin-top:10px}
+.lt-voice-transcript textarea{width:100%;min-height:56px;padding:12px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;font-family:inherit;line-height:1.4;outline:none;box-sizing:border-box;resize:none;overflow-y:hidden}
+.lt-voice-transcript p{margin:8px 0 0;color:#a0a5bb;font-size:.8rem}
 .mic-btn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:1px solid #333a50;background:#13161f;color:#a599ff;font-size:.85rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;padding:0}
 .mic-btn:hover{border-color:#7c6af6;background:rgba(124,106,246,.12)}
 .mic-btn.listening{background:#f87171;border-color:#f87171;color:#fff;animation:mic-pulse 1.2s infinite}
@@ -960,6 +979,13 @@ function resetUI(){
 .q-section .q-sub{font-size:.8rem;color:#7a809a;margin-bottom:14px}
 .q-item{margin-bottom:16px;background:#13161f;padding:16px 18px;border-radius:12px;border:1px solid #252a3a}
 .q-item label{font-size:.87rem;font-weight:600;color:#d1d5e0;display:block;margin-bottom:10px;line-height:1.55}
+.q-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;margin-bottom:10px}
+.q-heading label{flex:1 1 260px;margin-bottom:0}
+.q-required{color:#f87171;margin-left:3px}
+.q-suggestions{flex:0 0 auto;color:#a599ff;font-size:.82rem;font-weight:600;line-height:1.6;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+.q-suggestions:hover{color:#c8cbff}
+.q-suggestions:focus-visible{outline:2px solid #a599ff;outline-offset:4px;border-radius:2px}
+.q-research-notice{font-size:.78rem;line-height:1.6;color:#b0b5cc;margin:8px 0}
 .q-item textarea,.q-item input[type=text]{width:100%;padding:11px 14px;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;font-family:inherit;resize:vertical;outline:none;transition:.2s;min-height:80px}
 .q-item textarea:focus,.q-item input[type=text]:focus{border-color:#7c6af6;box-shadow:0 0 0 3px rgba(124,106,246,.12)}
 .q-scale-wrap{display:flex;flex-direction:column;gap:8px}
@@ -1041,7 +1067,7 @@ function resetUI(){
 
   <div class="twin-tabs">
     <button class="twin-tab active" onclick="showTwinTab('tab-form')">📝 Describe Them</button>
-    <button class="twin-tab" onclick="showTwinTab('tab-video')">🎥 Live Conversation</button>
+    <button class="twin-tab" data-tour="live-tab" onclick="showTwinTab('tab-video')">🎥 Live Conversation</button>
     <button class="twin-tab" onclick="showTwinTab('tab-results')">📊 Your Judgment</button>
   </div>
 
@@ -1056,9 +1082,11 @@ function resetUI(){
         </div>
       </div>
       <textarea id="lt-desc-input" rows="3"
+        oninput="refreshQuestionResearchLinks('lt-q-container',this.value)"
         placeholder="e.g. I'm meeting Sarah, the hiring manager for a product design role at a mid-size startup. It's a first-round interview over video call…"
         style="width:100%;padding:11px 14px;background:#0b0d13;border:1px solid #333a50;border-radius:9px;color:#d1d5e0;font-size:.87rem;font-family:inherit;resize:vertical;outline:none;transition:.2s;box-sizing:border-box"
         onfocus="this.style.borderColor='#7c6af6'" onblur="this.style.borderColor='#333a50'"></textarea>
+      <p class="q-research-notice">Suggestions searches include this description, the use case, the question, and relevant website hints. Opening a link sends that text to Google. Avoid confidential or sensitive details. Google decides which websites appear; recommended sources are not guaranteed.</p>
       <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
         <button class="btn-primary" id="lt-gen-q-btn" style="width:auto;margin-top:0" onclick="ltGenerateQuestions()">✨ Generate Follow-Up Questions</button>
         <span id="lt-gen-status" style="font-size:.82rem;color:#7a809a"></span>
@@ -1091,14 +1119,11 @@ function resetUI(){
         </div>
         <div>
           <div class="chat-box" id="lt-chat-box" style="min-height:340px;max-height:440px"></div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <div class="voice-input-wrap" style="flex:1">
-              <input type="text" id="lt-msg-input" placeholder="Click &quot;Start Live Call&quot; to begin the conversation…" disabled
-                style="width:100%;padding:10px 44px 10px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;outline:none;box-sizing:border-box"
-                onkeydown="if(event.key==='Enter')ltSendMessage()">
-              <button type="button" class="mic-btn" id="lt-mic-btn" title="Speak your reply" onclick="ltToggleMic()" disabled>🎤</button>
-            </div>
-            <button class="btn-primary" id="lt-send-btn" style="width:auto;margin-top:0" onclick="ltSendMessage()" disabled>Send</button>
+          <div class="lt-voice-transcript">
+            <textarea id="lt-msg-input" rows="1" aria-label="Your live speech transcript" readonly
+              placeholder="Click &quot;Start Live Call&quot; to begin the conversation…"></textarea>
+            <p id="lt-voice-status" role="status" aria-live="polite">Your replies are sent automatically after a 1.5-second pause.</p>
+            <p id="lt-voice-error" role="alert"></p>
           </div>
         </div>
       </div>
@@ -1108,7 +1133,7 @@ function resetUI(){
   <!-- ── JUDGMENT PANEL ── -->
   <div id="tab-results" class="twin-panel">
     <div id="lt-judgment-container">
-      <p style="color:#7a809a;text-align:center;padding:40px">Finish a live conversation to see your judgment here.</p>
+      <p id="lt-judgment-empty" class="lt-judgment-empty">Finish a live conversation to see your judgment here.</p>
     </div>
   </div>
 </div>
@@ -1224,6 +1249,52 @@ function handleExpiredAuth(){
 }
 
 // ── Questionnaire ──────────────────────────────────────────────
+function getQuestionResearchSites(useCaseId){
+  const sites={
+    dating_woman:[['Bumble','bumble.com'],['Hinge','hinge.co'],['The Gottman Institute','gottman.com']],
+    job_interviews:[['AmbitionBox','ambitionbox.com'],['Glassdoor','glassdoor.com'],['Indeed','indeed.com']],
+    girlfriend_conversation:[['The Gottman Institute','gottman.com'],['Psychology Today','psychologytoday.com'],['Relate','relate.org.uk']],
+    parents_conversation:[['Psychology Today','psychologytoday.com'],['Greater Good','greatergood.berkeley.edu'],['AAMFT','aamft.org']],
+    regulatory_compliance:[['SEC','sec.gov'],['FCA','fca.org.uk'],['The IIA','theiia.org']],
+    medical_consultations:[['AMA','ama-assn.org'],['AAFP','aafp.org'],['NICE','nice.org.uk']],
+    vc_investor_pitching:[['Y Combinator','ycombinator.com'],['Sequoia Capital','sequoiacap.com'],['Andreessen Horowitz','a16z.com']],
+    crisis_management_pr:[['PRSA','prsa.org'],['CIPR','cipr.co.uk'],['Institute for Public Relations','instituteforpr.org']],
+    diplomatic_negotiation:[['Harvard Program on Negotiation','pon.harvard.edu'],['Cultural Atlas','culturalatlas.sbs.com.au'],['UNITAR','unitar.org']],
+    corporate_leadership_boardrooms:[['Harvard Business Review','hbr.org'],['NACD','nacdonline.org'],['Institute of Directors','iod.com']]
+  };
+  return Object.hasOwn(sites,useCaseId)?sites[useCaseId]:[];
+}
+
+function buildQuestionSearchUrl(question, context, description='', useCaseId=null){
+  const searchUrl=new URL('https://www.google.com/search');
+  const query=[context,description.trim(),question].filter(Boolean).join(' ');
+  const sites=getQuestionResearchSites(useCaseId);
+  // Keep a topic alternative so the source hints do not restrict results to those websites.
+  const hints=sites.length?` (${sites.map(([,domain])=>domain).join(' OR ')} OR "${context.replace(/"/g,'')}")`:'';
+  searchUrl.searchParams.set('q',query+hints);
+  return searchUrl.href;
+}
+
+function renderQuestionResearchLink(question, context, description, useCaseId){
+  const url=buildQuestionSearchUrl(question,context,description,useCaseId);
+  const accessibleLabel=escapeHtml(`Suggestions for: ${question} (Google search, opens in a new tab)`);
+  return `<a class="q-suggestions" href="${escapeHtml(url)}" data-research-question="${escapeHtml(question)}" data-research-context="${escapeHtml(context)}" data-research-use-case="${escapeHtml(useCaseId||'')}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" title="Search Google for this question (opens in a new tab)" aria-label="${accessibleLabel}">Suggestions</a>`;
+}
+
+function refreshQuestionResearchLinks(containerId, description){
+  const container=document.getElementById(containerId);
+  container.querySelectorAll('a[data-research-question]').forEach(link=>{
+    const data=link.dataset;
+    link.href=buildQuestionSearchUrl(data.researchQuestion,data.researchContext,description,data.researchUseCase);
+  });
+}
+
+function renderQuestionHeading(question, context, required, description='', useCaseId=null){
+  const requiredMark=required?'<span class="q-required">*</span>':'';
+  const suggestions=renderQuestionResearchLink(question,context,description,useCaseId);
+  return `<div class="q-heading"><label>${escapeHtml(question)}${requiredMark}</label>${suggestions}</div>`;
+}
+
 // ── Scenario-specific questionnaire ────────────────────────────
 async function generateScenarioQuestions(){
   if(!twinAuthToken){setAuthMsg('Log in first.','err');return;}
@@ -1253,8 +1324,7 @@ function renderScenarioQuestions(questions){
   html+='<h4 style="color:#a599ff;font-size:.9rem;font-weight:700;margin-bottom:16px">Your Personalised Preparation Questions</h4>';
   questions.forEach(q=>{
     const fullQ=q.question||q.label||q.id;
-    const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
-    html+=`<div class="q-item"><label>${fullQ}${req}</label>`;
+    html+=`<div class="q-item">${renderQuestionHeading(fullQ,selectedUseCaseLabel||'Scenario preparation',q.required,document.getElementById('scenario-desc-input')?.value||'',selectedUseCaseId)}`;
     if(q.type==='scale'){
       const mn=q.scale_min??q.min??1,mx=q.scale_max??q.max??10;
       html+='<div class="q-scale-wrap"><div class="q-scale">';
@@ -1353,9 +1423,8 @@ function renderTwinForm(schema){
       <div style="border-bottom:1px solid #252a3a;margin-bottom:16px"></div>`;
     sec.questions.forEach(q=>{
       const label=q.label||q.text||q.id;
-      const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
       const savedVal=twinFormData[q.id];
-      html+=`<div class="q-item"><label>${label}${req}</label>`;
+      html+=`<div class="q-item">${renderQuestionHeading(label,`Personal profile ${sec.title}`,q.required)}`;
       if(q.type==='scale'){
         const savedNum=(savedVal!==undefined&&savedVal!==null&&savedVal!=='')?Number(savedVal):null;
         html+=`<div class="q-scale-wrap"><div class="q-scale">`;
@@ -1398,27 +1467,330 @@ function escapeHtml(s){
 }
 
 // ── Voice-to-text input (Web Speech API) for free-text questions ──
+// Browser speech recognition only works where the vendor provides a speech
+// backend (desktop Chrome/Edge/Safari). Elsewhere — e.g. VS Code's/Electron's
+// built-in browser — it fails with "network", so we record and transcribe server-side.
+let voiceUseServerStt = false;
+
+function shouldFallbackToServerStt(error){
+  return ['network','service-not-allowed','language-not-supported'].includes(error);
+}
+
+// Grows a textarea with its content (up to maxPx) and keeps the newest words in view.
+function autoGrowField(el, maxPx=140){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, maxPx)+'px';
+  el.style.overflowY=el.scrollHeight>maxPx ? 'auto' : 'hidden';
+  el.scrollTop=el.scrollHeight;
+}
+
+function audioRms(samples){
+  let sum=0;
+  for(let i=0;i<samples.length;i++) sum+=samples[i]*samples[i];
+  return samples.length ? Math.sqrt(sum/samples.length) : 0;
+}
+
+function concatFloat32(chunks){
+  const out=new Float32Array(chunks.reduce((n,c)=>n+c.length,0));
+  let offset=0;
+  for(const c of chunks){ out.set(c,offset); offset+=c.length; }
+  return out;
+}
+
+// Splits a live audio stream into phrases at natural pauses, so each phrase
+// can be transcribed while the user keeps talking.
+function createSpeechSegmenter({sampleRate, threshold=0.012, silenceMs=600, maxMs=5000, prerollMs=300, minSpeechMs=200, cutWindowMs=1500, onPause=()=>{}}){
+  const ms=v=>Math.round(v*sampleRate/1000);
+  const silenceLimit=ms(silenceMs), maxLen=ms(maxMs), prerollLen=ms(prerollMs), minSpeech=ms(minSpeechMs), cutWindow=ms(cutWindowMs);
+  let preroll=[], prerollSize=0, phrase=[], levels=[], phraseSize=0, speechSize=0, silenceSize=0, inSpeech=false;
+  let pendingPause=false;
+  function reset(){ phrase=[]; levels=[]; phraseSize=0; speechSize=0; silenceSize=0; inSpeech=false; preroll=[]; prerollSize=0; }
+  function take(){
+    const out=speechSize>=minSpeech ? concatFloat32(phrase) : null;
+    reset();
+    return out;
+  }
+  // Over-long phrase: cut after the quietest chunk near the end (a gap between
+  // words) and carry the rest over, so no word is split across two requests.
+  function cutAtQuietest(){
+    let best=phrase.length-1, end=phraseSize;
+    for(let i=phrase.length-1;i>=0 && phraseSize-end<cutWindow;i--){
+      if(levels[i]<levels[best]) best=i;
+      end-=phrase[i].length;
+    }
+    if(best===phrase.length-1) return take();
+    const head=phrase.slice(0,best+1), headLevels=levels.slice(0,best+1);
+    const restChunks=phrase.slice(best+1), restLevels=levels.slice(best+1);
+    const headSpeech=head.reduce((n,c,i)=>n+(headLevels[i]>=threshold?c.length:0),0);
+    const out=headSpeech>=minSpeech ? concatFloat32(head) : null;
+    phrase=restChunks; levels=restLevels;
+    phraseSize=restChunks.reduce((n,c)=>n+c.length,0);
+    speechSize=restChunks.reduce((n,c,i)=>n+(restLevels[i]>=threshold?c.length:0),0);
+    silenceSize=0;
+    for(let i=restChunks.length-1;i>=0 && restLevels[i]<threshold;i--) silenceSize+=restChunks[i].length;
+    return out;
+  }
+  return {
+    push(chunk){
+      const level=audioRms(chunk), loud=level>=threshold;
+      if(!inSpeech){
+        if(!loud){
+          if(pendingPause){
+            silenceSize+=chunk.length;
+            if(silenceSize>=silenceLimit){
+              pendingPause=false; silenceSize=0;
+              onPause();
+            }
+          }
+          preroll.push(chunk); prerollSize+=chunk.length;
+          while(preroll.length>1 && prerollSize-preroll[0].length>=prerollLen){ prerollSize-=preroll.shift().length; }
+          if(prerollSize>prerollLen){
+            const extra=prerollSize-prerollLen;
+            preroll[0]=preroll[0].subarray(extra); prerollSize-=extra;
+          }
+          return [];
+        }
+        inSpeech=true; silenceSize=0; phrase=preroll; levels=preroll.map(()=>0); phraseSize=prerollSize; preroll=[]; prerollSize=0;
+      }
+      phrase.push(chunk); levels.push(level); phraseSize+=chunk.length;
+      if(loud){ speechSize+=chunk.length; silenceSize=0; } else silenceSize+=chunk.length;
+      if(speechSize>=minSpeech) pendingPause=true;
+      if(silenceSize>=silenceLimit){
+        const hadSpeech=pendingPause;
+        const out=take();
+        pendingPause=false;
+        if(hadSpeech) onPause();
+        return out ? [out] : [];
+      }
+      if(phraseSize>=maxLen){
+        const out=cutAtQuietest();
+        return out ? [out] : [];
+      }
+      return [];
+    },
+    flush(){ return inSpeech ? take() : null; },
+    current(){ return inSpeech && speechSize>=minSpeech ? concatFloat32(phrase) : null; },
+  };
+}
+
+// Combines per-phrase interim and final transcripts into the text shown live.
+// Phrases are keyed by sequence number so they always display in spoken order.
+function createTranscriptAssembler(){
+  const phrases=new Map(); // seq -> {text, final, len}
+  return {
+    setInterim(seq, text, len){
+      const p=phrases.get(seq);
+      if(p && ((p.final && p.text) || (!p.final && p.len>=len))) return false;
+      phrases.set(seq, {text, final:!!(p && p.final), len});
+      return true;
+    },
+    // An empty/failed final keeps the interim words already shown for the phrase.
+    setFinal(seq, text){
+      const kept=text || (phrases.get(seq)||{}).text || '';
+      phrases.set(seq, {text:kept, final:true, len:Infinity});
+    },
+    text(){
+      return [...phrases.keys()].sort((a,b)=>a-b).map(k=>phrases.get(k).text).filter(Boolean).join(' ');
+    },
+    hasText(){ return [...phrases.values()].some(p=>p.final && p.text); },
+  };
+}
+
+function downsampleAudio(samples, fromRate, toRate){
+  if(fromRate===toRate) return samples;
+  const ratio=fromRate/toRate;
+  const out=new Float32Array(Math.floor(samples.length/ratio));
+  for(let i=0;i<out.length;i++){
+    const start=Math.floor(i*ratio), end=Math.min(samples.length, Math.floor((i+1)*ratio));
+    let sum=0;
+    for(let j=start;j<end;j++) sum+=samples[j];
+    out[i]=end>start ? sum/(end-start) : 0;
+  }
+  return out;
+}
+
+function encodeWav(samples, sampleRate){
+  const buf=new ArrayBuffer(44+samples.length*2);
+  const v=new DataView(buf);
+  const write=(o,str)=>{ for(let i=0;i<str.length;i++) v.setUint8(o+i,str.charCodeAt(i)); };
+  write(0,'RIFF'); v.setUint32(4,36+samples.length*2,true); write(8,'WAVE');
+  write(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  write(36,'data'); v.setUint32(40,samples.length*2,true);
+  for(let i=0;i<samples.length;i++){
+    const x=Math.max(-1,Math.min(1,samples[i]));
+    v.setInt16(44+i*2, x<0 ? x*0x8000 : x*0x7FFF, true);
+  }
+  return buf;
+}
+
+// Live transcription without a browser speech service: the phrase currently
+// being spoken is re-transcribed every ~0.5 s (interim text that grows as you
+// talk), and once you pause the finished phrase is transcribed once more and
+// locked in. onUpdate(text) receives the full live transcript after every change.
+async function startServerVoiceCapture({stream, onStateChange, onUpdate, onError, silenceMs=700, onTurn}){
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx || !navigator.mediaDevices){ onError('Voice input is not available in this browser. Please type instead.'); return null; }
+  let ownStream=null;
+  let tracks=stream ? stream.getAudioTracks().filter(t=>t.readyState==='live') : [];
+  if(!tracks.length){
+    try{ ownStream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ onError('Microphone access was blocked. Please allow microphone permission and try again.'); return null; }
+    tracks=ownStream.getAudioTracks();
+  }
+  const ctx=new AudioCtx();
+  const source=ctx.createMediaStreamSource(new MediaStream(tracks));
+  const processor=ctx.createScriptProcessor(2048,1,1);
+  const mute=ctx.createGain(); mute.gain.value=0;
+  let turnEnded=false;
+  const segmenter=createSpeechSegmenter({
+    sampleRate:ctx.sampleRate, silenceMs, maxMs:12000,
+    onPause(){ if(onTurn) turnEnded=true; },
+  });
+  const transcript=createTranscriptAssembler();
+  const requestAbort=new AbortController();
+  const TARGET_RATE=16000;
+  const INTERIM_STEP=Math.round(ctx.sampleRate*0.35);
+
+  let active=true, cancelled=false, completed=false, nextSeq=0, pendingFinals=0, failure='';
+  let interimInFlight=false, lastInterimLen=0;
+
+  const toWav=samples=>encodeWav(downsampleAudio(samples, ctx.sampleRate, TARGET_RATE), TARGET_RATE);
+  const publish=()=>{ if(!cancelled) onUpdate(transcript.text()); };
+
+  function finishIfDone(){
+    if(active || pendingFinals || interimInFlight || completed) return;
+    completed=true;
+    if(!cancelled){
+      if(failure) onError(failure);
+      else if(!transcript.hasText()) onError("Didn't catch that - please speak again.");
+      onStateChange('idle');
+      if(onTurn) onTurn(transcript.text());
+    }
+  }
+  function sendFinal(samples){
+    const seq=nextSeq++;
+    lastInterimLen=0;
+    pendingFinals++;
+    transcribeWav(toWav(samples), requestAbort.signal)
+      .then(text=>transcript.setFinal(seq,text))
+      .catch(e=>{
+        if(cancelled) return;
+        console.warn('[STT] phrase transcription failed:', e);
+        failure=e.message||'Transcription failed - please speak again.';
+        transcript.setFinal(seq,'');
+      })
+      .finally(()=>{ pendingFinals--; publish(); finishIfDone(); });
+  }
+  function maybeSendInterim(){
+    if(interimInFlight || !active) return;
+    const samples=segmenter.current();
+    if(!samples || samples.length-lastInterimLen<INTERIM_STEP) return;
+    const seq=nextSeq, len=samples.length;
+    lastInterimLen=len;
+    interimInFlight=true;
+    transcribeWav(toWav(samples), requestAbort.signal)
+      .then(text=>{ if(text && transcript.setInterim(seq,text,len)) publish(); })
+      .catch(e=>{ if(!cancelled) console.warn('[STT] interim transcription failed:', e); })
+      .finally(()=>{ interimInFlight=false; finishIfDone(); });
+  }
+
+  processor.onaudioprocess=(e)=>{
+    if(!active) return;
+    const chunk=new Float32Array(e.inputBuffer.getChannelData(0));
+    segmenter.push(chunk).forEach(sendFinal);
+    if(turnEnded){
+      shutdown();
+      onStateChange('transcribing');
+      finishIfDone();
+      return;
+    }
+    maybeSendInterim();
+  };
+  source.connect(processor); processor.connect(mute); mute.connect(ctx.destination);
+  onStateChange('listening');
+
+  function shutdown(){
+    if(!active) return;
+    active=false;
+    processor.onaudioprocess=null;
+    try{ source.disconnect(); processor.disconnect(); mute.disconnect(); }catch(_){}
+    ctx.close().catch(()=>{});
+    if(ownStream) ownStream.getTracks().forEach(t=>t.stop());
+  }
+  return {
+    get active(){ return active; },
+    stop(){
+      if(!active) return;
+      const tail=segmenter.flush();
+      shutdown();
+      if(tail) sendFinal(tail);
+      if(pendingFinals) onStateChange('transcribing');
+      finishIfDone();
+    },
+    cancel(){ cancelled=true; requestAbort.abort(); segmenter.flush(); shutdown(); finishIfDone(); },
+  };
+}
+
+function arrayBufferToBase64(buf){
+  const bytes=new Uint8Array(buf);
+  let binary='';
+  for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+  return btoa(binary);
+}
+
+async function transcribeWav(wavBuffer, signal){
+  const controller=new AbortController();
+  const cancel=()=>controller.abort();
+  if(signal){
+    if(signal.aborted) cancel();
+    else signal.addEventListener('abort',cancel,{once:true});
+  }
+  const timeoutId=setTimeout(cancel,15000);
+  try{
+    const r=await fetch('/live/transcribe',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+twinAuthToken},
+      body:JSON.stringify({audio:arrayBufferToBase64(wavBuffer), mimetype:'audio/wav'}),
+      signal:controller.signal,
+    });
+    if(r.status===401){ handleExpiredAuth(); throw new Error('Session expired — please log in again.'); }
+    const d=await r.json();
+    if(!r.ok || d.error) throw new Error(d.error || 'Transcription failed. Please speak again.');
+    if(typeof d.text!=='string') throw new Error('Invalid transcription response. Please speak again.');
+    return d.text.trim();
+  }finally{
+    clearTimeout(timeoutId);
+    if(signal) signal.removeEventListener('abort',cancel);
+  }
+}
+
 let _activeVoiceBtn = null;
-function startVoiceInput(qid, btn){
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!Recognition){
-    alert('Voice input is not supported in this browser. Please use Google Chrome or Microsoft Edge, or type your answer instead.');
-    return;
-  }
+
+function setVoiceBtnState(btn, state){
+  btn.classList.toggle('listening', state==='listening');
+  btn.textContent = state==='listening' ? '⏹' : state==='transcribing' ? '⏳' : '🎤';
+  btn.title = state==='listening' ? 'Listening… click to stop' : state==='transcribing' ? 'Transcribing…' : 'Click to answer by voice';
+  btn.disabled = state==='transcribing';
+}
+
+function stopVoiceBtn(btn){
+  if(btn._recognition) btn._recognition.stop();
+  if(btn._capture) btn._capture.stop();
+}
+
+async function startVoiceInput(qid, btn){
   // Toggle off if this same button is already recording
-  if(_activeVoiceBtn === btn){
-    btn._recognition && btn._recognition.stop();
-    return;
-  }
+  if(_activeVoiceBtn === btn){ stopVoiceBtn(btn); return; }
   // Only one field can record at a time — stop whichever is currently active
-  if(_activeVoiceBtn && _activeVoiceBtn._recognition){
-    _activeVoiceBtn._recognition.stop();
-  }
+  if(_activeVoiceBtn) stopVoiceBtn(_activeVoiceBtn);
 
   const fieldEl = document.getElementById('q-'+qid);
   if(!fieldEl) return;
-  const baseText = fieldEl.value ? fieldEl.value.trim() + ' ' : '';
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!Recognition || voiceUseServerStt){ startServerVoiceInput(qid, btn, fieldEl); return; }
 
+  const baseText = fieldEl.value ? fieldEl.value.trim() + ' ' : '';
   const recognition = new Recognition();
   recognition.lang = 'en-US';
   recognition.continuous = true;
@@ -1426,11 +1798,10 @@ function startVoiceInput(qid, btn){
   recognition.maxAlternatives = 1;
 
   let finalTranscript = '';
+  let fallBack = false;
   btn._recognition = recognition;
   _activeVoiceBtn = btn;
-  btn.classList.add('listening');
-  btn.textContent = '⏹';
-  btn.title = 'Listening… click to stop';
+  setVoiceBtnState(btn, 'listening');
 
   recognition.onresult = (event) => {
     let interim = '';
@@ -1444,20 +1815,45 @@ function startVoiceInput(qid, btn){
   };
   recognition.onerror = (e) => {
     console.warn('[VoiceInput] recognition error:', e.error);
-    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+    if(e.error === 'not-allowed'){
       alert('Microphone access was blocked. Please allow microphone permission and try again.');
+    } else if(shouldFallbackToServerStt(e.error)){
+      voiceUseServerStt = true; fallBack = true;
     }
   };
   recognition.onend = () => {
-    btn.classList.remove('listening');
-    btn.textContent = '🎤';
-    btn.title = 'Click to answer by voice';
+    setVoiceBtnState(btn, 'idle');
     fieldEl.value = fieldEl.value.trim();
     twinFormData[qid] = fieldEl.value;
     btn._recognition = null;
     if(_activeVoiceBtn === btn) _activeVoiceBtn = null;
+    if(fallBack) startServerVoiceInput(qid, btn, fieldEl);
   };
   recognition.start();
+}
+
+async function startServerVoiceInput(qid, btn, fieldEl){
+  _activeVoiceBtn = btn;
+  if(fieldEl._originalPlaceholder === undefined) fieldEl._originalPlaceholder = fieldEl.placeholder;
+  const baseText = fieldEl.value ? fieldEl.value.trim() + ' ' : '';
+  let errorMsg = '';
+  btn._capture = await startServerVoiceCapture({
+    onStateChange(state){
+      setVoiceBtnState(btn, state);
+      if(state==='listening') errorMsg = '';
+      fieldEl.placeholder = state==='listening' ? '🎙 Listening… speak and your words appear here.'
+        : state==='transcribing' ? '⏳ Finishing the last words…'
+        : errorMsg ? '⚠️ '+errorMsg : fieldEl._originalPlaceholder;
+      if(state==='idle'){ btn._capture = null; if(_activeVoiceBtn === btn) _activeVoiceBtn = null; }
+    },
+    onUpdate(text){
+      fieldEl.value = (baseText + text).trim();
+      twinFormData[qid] = fieldEl.value;
+    },
+    onError(msg){ errorMsg = msg; },
+  });
+  if(!btn._capture && errorMsg) alert(errorMsg);
+  if(!btn._capture && _activeVoiceBtn === btn){ _activeVoiceBtn = null; setVoiceBtnState(btn, 'idle'); }
 }
 function optLabel(rawOpt){
   if(rawOpt&&typeof rawOpt==='object') return rawOpt.label||rawOpt.value||rawOpt.text||rawOpt.name||JSON.stringify(rawOpt);
@@ -2526,6 +2922,7 @@ async function renderUseCaseGrid(){
     card.innerHTML = `<div class="uc-emoji">${uc.emoji||'🎯'}</div><div class="uc-label">${uc.label}</div><div class="uc-desc">${uc.description||''}</div><div class="uc-level-pill" id="uc-level-${uc.id}">Level 1 · Novice Twin</div>`;
     grid.appendChild(card);
   }
+  if(typeof guidedTour!=='undefined') guidedTour.refresh();
   // Fill in each card's current streak/level, if the user is logged in
   if(twinAuthToken){
     for(const uc of _useCasesCache){
@@ -2640,6 +3037,7 @@ function logout(){
      script above (later function declarations win) so the old
      questionnaire/simulation code above is inert dead weight.
      ════════════════════════════════════════════════════════════ -->
+<script src="/static/guided-tour.js"></script>
 <script>
 let ltSessionId = null;
 let ltPersona = null;
@@ -2648,8 +3046,13 @@ let ltMediaStream = null;
 let ltFrameTimer = null;
 let ltAudioTimer = null;
 let ltMediaRecorder = null;
-let ltRecognition = null;
-let ltListening = false;
+let ltSttRecorder = null;
+let ltStartingStt = false;
+let ltVoiceEpoch = 0;
+let ltCallEpoch = 0;
+let ltSpeaking = false;
+let ltFinishPlayback = null;
+const LT_MSG_PLACEHOLDER = 'Click "Start Live Call" to begin the conversation…';
 let ltCallActive = false;
 let ltSending = false;
 let ltSendAbortController = null;
@@ -2658,11 +3061,29 @@ let ltSendAbortController = null;
 // cutting off speech (text still renders fine, since that's unrelated DOM
 // work) — keep a persistent reference so it can't be collected until done.
 let ltCurrentUtterance = null;
+if(window.speechSynthesis) speechSynthesis.getVoices();
 
-function ltSetChatControlsEnabled(enabled){
-  document.getElementById('lt-msg-input').disabled = !enabled;
-  document.getElementById('lt-mic-btn').disabled = !enabled;
-  document.getElementById('lt-send-btn').disabled = !enabled;
+function ltSetVoiceStatus(message, isError=false){
+  document.getElementById(isError ? 'lt-voice-error' : 'lt-voice-status').textContent=message;
+}
+
+function ltStopListening(){
+  ltVoiceEpoch++;
+  ltStartingStt=false;
+  if(ltSttRecorder) ltSttRecorder.cancel();
+  ltSttRecorder=null;
+}
+
+function ltStopVoice(){
+  ltCallEpoch++;
+  ltStopListening();
+  if(ltSendAbortController) ltSendAbortController.abort();
+  ltSendAbortController=null;
+  ltSending=false;
+  if(ltFinishPlayback) ltFinishPlayback();
+  if(window.speechSynthesis) speechSynthesis.cancel();
+  document.getElementById('lt-msg-input').placeholder=LT_MSG_PLACEHOLDER;
+  ltSetVoiceStatus('Call ended. Start a live call to speak with the twin.');
 }
 
 // Wipes every trace of a previous describe→questions→build→call→judgment run
@@ -2690,14 +3111,16 @@ function ltResetFlowState(){
   const chatBox = document.getElementById('lt-chat-box');
   if(chatBox) chatBox.innerHTML = '';
   const msgInput = document.getElementById('lt-msg-input');
-  if(msgInput) msgInput.value = '';
+  if(msgInput){ msgInput.value = ''; autoGrowField(msgInput); }
   document.getElementById('lt-start-call-btn').style.display = 'inline-block';
   document.getElementById('lt-end-call-btn').style.display = 'none';
   document.getElementById('lt-call-status').textContent = '';
-  ltSetChatControlsEnabled(false);
+  ltStopVoice();
+  ltSetVoiceStatus('Start Live Call to begin. Your replies are sent after a 1.5-second pause.');
+  ltSetVoiceStatus('', true);
 
   const judgmentContainer = document.getElementById('lt-judgment-container');
-  if(judgmentContainer) judgmentContainer.innerHTML = '<p style="color:#7a809a;text-align:center;padding:40px">Finish a live conversation to see your judgment here.</p>';
+  if(judgmentContainer) judgmentContainer.innerHTML = '<p id="lt-judgment-empty" class="lt-judgment-empty">Finish a live conversation to see your judgment here.</p>';
 
   document.querySelectorAll('.twin-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.twin-tab').forEach((t,i)=>t.classList.toggle('active', i===0));
@@ -2714,8 +3137,7 @@ function ltEndCallSilently(){
   if(ltAudioTimer) clearInterval(ltAudioTimer);
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
   if(ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
-  if(ltRecognition) ltRecognition.stop();
-  if(window.speechSynthesis) speechSynthesis.cancel();
+  ltStopVoice();
 }
 
 function showTwinTab(id, evt){
@@ -2782,18 +3204,55 @@ function ltRenderQuestions(questions){
   let html='<div style="border-top:1px solid #252a3a;margin-top:20px;padding-top:20px">';
   html+='<h4 style="color:#a599ff;font-size:.9rem;font-weight:700;margin-bottom:16px">A Few Quick Follow-Ups</h4>';
   questions.forEach(q=>{
-    const req=q.required?'<span style="color:#f87171;margin-left:3px">*</span>':'';
-    html+=`<div class="q-item"><label>${q.question}${req}</label>`;
-    html+=`<div class="voice-input-wrap"><textarea id="q-${q.id}" rows="2" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value"></textarea><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
+    // The user already knows the person's gender, so a web search for it adds nothing.
+    const heading=q.id==='gender'
+      ? `<div class="q-heading"><label>${escapeHtml(q.question)}${q.required?'<span class="q-required">*</span>':''}</label></div>`
+      : renderQuestionHeading(q.question,selectedUseCaseLabel||'Conversation preparation',q.required,document.getElementById('lt-desc-input').value,selectedUseCaseId);
+    html+=`<div class="q-item">${heading}`;
+    if(q.type==='choice' && Array.isArray(q.options)){
+      html+=`<div class="q-chips" role="radiogroup" aria-label="${escapeHtml(q.question)}">`;
+      q.options.forEach(opt=>{
+        html+=`<button type="button" role="radio" onclick="toggleChip('${q.id}','${escapeHtml(opt)}',this,false)">${escapeHtml(opt)}</button>`;
+      });
+      html+='</div>';
+    } else {
+      html+=`<div class="voice-input-wrap"><textarea id="q-${q.id}" rows="2" placeholder="${q.placeholder||''}" oninput="twinFormData['${q.id}']=this.value"></textarea><button type="button" class="mic-btn" title="Click to answer by voice" onclick="startVoiceInput('${q.id}',this)">🎤</button></div>`;
+    }
     html+='</div>';
   });
   html+='</div>';
   cont.innerHTML=html;
   document.getElementById('lt-build-row').style.display='flex';
+  if(typeof guidedTour!=='undefined') guidedTour.refresh();
+}
+
+function ltMissingRequiredGender(){
+  return !['male','female'].includes(String(twinFormData.gender||'').toLowerCase());
+}
+
+const TWIN_VOICE_HINTS = {
+  female: /female|woman|samantha|victoria|karen|moira|tessa|fiona|veena|zira|susan|hazel|serena|allison|ava|joanna|salli|kimberly/i,
+  male: /\bmale\b|\bman\b|alex|daniel|fred|david|mark|george|rishi|oliver|tom|aaron|arthur|gordon|matthew|joey|justin/i,
+};
+
+// Browsers don't expose voice gender, so infer it from well-known voice names.
+function pickTwinVoice(voices, gender){
+  const g=String(gender||'').toLowerCase();
+  const hint=TWIN_VOICE_HINTS[g];
+  if(!hint || !voices || !voices.length) return null;
+  const matches=voices.filter(v=>hint.test(v.name));
+  return matches.find(v=>/^en/i.test(v.lang||'')) || matches[0] || null;
+}
+
+function getTwinVoicePitch(gender, voiceFound){
+  if(voiceFound) return 1;
+  const g=String(gender||'').toLowerCase();
+  return g==='female' ? 1.25 : g==='male' ? 0.75 : 1;
 }
 
 async function ltBuildTwin(){
   if(!ltSessionId){ ltSetStatus('Generate questions first.', true); return; }
+  if(ltMissingRequiredGender()){ ltSetStatus('Please answer: is this person male or female?', true); return; }
   ltSetStatus('🤖 Building their digital twin…', false);
   try{
     const r=await fetch('/live/build',{
@@ -2819,7 +3278,7 @@ async function ltBuildTwin(){
   }
 }
 
-function ltRenderChatMessage(role, content){
+async function ltRenderChatMessage(role, content){
   const box=document.getElementById('lt-chat-box');
   const wrap=document.createElement('div');
   wrap.className='sim-bubble-wrap '+(role==='user'?'agent':'twin');
@@ -2833,19 +3292,43 @@ function ltRenderChatMessage(role, content){
   box.appendChild(wrap);
   box.scrollTop=box.scrollHeight;
   if(role==='twin' && window.speechSynthesis){
-    try{
-      // Cancel any still-pending utterance first — a stuck/leftover item in
-      // the speech queue (e.g. from a previous reply) can silently block
-      // every subsequent speak() call from ever producing audio.
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(content);
-      u.rate=1.02;
-      u.onerror=(e)=>console.warn('[TTS] speechSynthesis error:', e.error);
-      ltCurrentUtterance=u;
-      speechSynthesis.speak(u);
-    }catch(e){
-      console.warn('[TTS] speechSynthesis failed:', e);
-    }
+    ltStopListening();
+    ltSpeaking=true;
+    ltSetVoiceStatus('Twin speaking - your microphone will listen when the twin finishes.');
+    await new Promise(resolve=>{
+      const finish=()=>{
+        if(ltFinishPlayback!==finish) return;
+        ltFinishPlayback=null;
+        ltCurrentUtterance=null;
+        ltSpeaking=false;
+        resolve();
+      };
+      ltFinishPlayback=finish;
+      try{
+        speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(content);
+        u.rate=1.02;
+        const gender=ltPersona&&ltPersona.gender;
+        const voice=pickTwinVoice(speechSynthesis.getVoices(), gender);
+        if(voice) u.voice=voice;
+        u.pitch=getTwinVoicePitch(gender, !!voice);
+        u.onend=finish;
+        u.onerror=(e)=>{
+          if(ltCurrentUtterance!==u) return;
+          console.warn('[TTS] speechSynthesis error:', e.error);
+          if(ltCallActive) ltSetVoiceStatus('Twin voice unavailable. Read the reply above, then speak.', true);
+          finish();
+        };
+        ltCurrentUtterance=u;
+        speechSynthesis.speak(u);
+      }catch(e){
+        console.warn('[TTS] speechSynthesis failed:', e);
+        ltSetVoiceStatus('Twin voice unavailable. Read the reply above, then speak.', true);
+        finish();
+      }
+    });
+  }else if(role==='twin'){
+    ltSetVoiceStatus('Twin voice is not supported by this browser. Read the reply above, then speak.', true);
   }
 }
 
@@ -2869,6 +3352,7 @@ function ltShowThinkingBubble(){
 }
 
 async function ltStartCall(){
+  if(typeof guidedTour!=='undefined') guidedTour.close();
   if(!ltSessionId || !ltPersona){ document.getElementById('lt-call-status').textContent='Build the twin first (Describe Them tab).'; return; }
   try{
     ltMediaStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
@@ -2881,11 +3365,15 @@ async function ltStartCall(){
   document.getElementById('lt-end-call-btn').style.display='inline-block';
   document.getElementById('lt-call-status').textContent='🔴 Live — analysing posture, expressions, eyebrows, voice…';
   ltCallActive=true;
-  ltSetChatControlsEnabled(true);
+  if(typeof guidedTour!=='undefined') guidedTour.refresh();
+  ltStopVoice();
+  const epoch=ltCallEpoch;
+  ltSetVoiceStatus('', true);
+  document.getElementById('lt-msg-input').value='';
+  autoGrowField(document.getElementById('lt-msg-input'));
 
   // The twin's opening line only plays once the live call has actually started.
   document.getElementById('lt-chat-box').innerHTML='';
-  if(ltOpeningLine) ltRenderChatMessage('twin', ltOpeningLine);
 
   const canvas=document.getElementById('lt-canvas');
   const video=document.getElementById('lt-video');
@@ -2901,6 +3389,8 @@ async function ltStartCall(){
   },2500);
 
   ltStartAudioChunking();
+  if(ltOpeningLine) await ltRenderChatMessage('twin', ltOpeningLine);
+  if(ltCallActive && epoch===ltCallEpoch) await ltStartListening();
 }
 
 function ltStartAudioChunking(){
@@ -2928,19 +3418,17 @@ function ltStartAudioChunking(){
   ltAudioTimer=setInterval(record,7000);
 }
 
-async function ltSendMessage(){
-  // Guard against: sending once the call has already ended, and against
-  // piling up concurrent sends (mashing Send/Enter) which is what made
-  // replies feel "stuck" — only one in-flight request at a time.
+async function ltSendMessage(text){
   if(!ltCallActive || ltSending) return;
-  const input=document.getElementById('lt-msg-input');
-  const text=input.value.trim();
+  const epoch=ltCallEpoch;
+  const current=()=>ltCallActive && epoch===ltCallEpoch;
+  text=text.trim();
   if(!text || !ltSessionId) return;
-  input.value='';
+  ltStopListening();
   ltRenderChatMessage('user', text);
 
   ltSending=true;
-  ltSetChatControlsEnabled(false);
+  ltSetVoiceStatus('Twin is thinking...');
   const thinkingBubble=ltShowThinkingBubble();
   const controller=new AbortController();
   ltSendAbortController=controller;
@@ -2956,55 +3444,84 @@ async function ltSendMessage(){
     thinkingBubble.remove();
     // The call may have been ended while this request was in flight — drop
     // the late reply instead of rendering/speaking it after "End" was clicked.
-    if(!ltCallActive) return;
+    if(!current()) return;
     if(r.status===401){handleExpiredAuth();return;}
     const d=await r.json();
-    if(!ltCallActive) return;
-    if(d.error){ ltRenderChatMessage('twin','[Error: '+d.error+']'); return; }
-    ltRenderChatMessage('twin', d.reply);
+    if(!current()) return;
+    if(!r.ok || d.error || typeof d.reply!=='string' || !d.reply.trim()){
+      throw new Error(d.error || 'The twin could not respond. Please speak again.');
+    }
+    await ltRenderChatMessage('twin', d.reply);
   }catch(e){
     clearTimeout(timeoutId);
     thinkingBubble.remove();
-    if(!ltCallActive) return;
-    if(e.name==='AbortError'){
-      ltRenderChatMessage('twin','[Taking too long to respond — please try again.]');
-    } else {
-      ltRenderChatMessage('twin','[Connection error]');
-    }
+    if(!current()) return;
+    console.warn('[LiveCall] reply failed:', e);
+    ltSetVoiceStatus(e.name==='AbortError'
+      ? 'The twin took too long to respond. Please speak again.'
+      : 'Could not get the twin reply: '+e.message, true);
   }finally{
-    ltSending=false;
-    ltSendAbortController=null;
-    if(ltCallActive) ltSetChatControlsEnabled(true);
+    if(epoch===ltCallEpoch){
+      ltSending=false;
+      ltSendAbortController=null;
+      if(ltCallActive) await ltStartListening();
+    }
   }
 }
 
-function ltToggleMic(){
-  if(!ltCallActive) return;
-  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const btn=document.getElementById('lt-mic-btn');
-  if(!Recognition){ alert('Voice input is not supported in this browser. Please type instead.'); return; }
-  if(ltListening){ ltRecognition && ltRecognition.stop(); return; }
-  ltRecognition=new Recognition();
-  ltRecognition.lang='en-US'; ltRecognition.continuous=true; ltRecognition.interimResults=true;
+async function ltStartListening(){
+  if(!ltCallActive || ltSending || ltSpeaking || ltStartingStt || ltSttRecorder) return;
+  const epoch=++ltVoiceEpoch;
+  ltStartingStt=true;
   const input=document.getElementById('lt-msg-input');
-  let finalTranscript='';
-  ltListening=true; btn.classList.add('listening'); btn.textContent='⏹';
-  ltRecognition.onresult=(event)=>{
-    let interim='';
-    for(let i=event.resultIndex;i<event.results.length;i++){
-      const t=event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalTranscript+=t+' '; else interim+=t;
-    }
-    input.value=(finalTranscript+interim).trim();
-  };
-  ltRecognition.onerror=(e)=>{ if(e.error==='not-allowed'||e.error==='service-not-allowed'){ alert('Microphone access was blocked.'); } };
-  ltRecognition.onend=()=>{ ltListening=false; btn.classList.remove('listening'); btn.textContent='🎤'; };
-  ltRecognition.start();
+  const current=()=>ltCallActive && epoch===ltVoiceEpoch;
+  let failure='';
+  try{
+    const capture=await startServerVoiceCapture({
+      stream:ltMediaStream, silenceMs:1500,
+      onStateChange(state){
+        if(!current()) return;
+        if(state==='listening'){
+          input.value=''; autoGrowField(input);
+          input.placeholder='Listening - speak your reply...';
+          ltSetVoiceStatus('Listening - your reply is sent after a 1.5-second pause.');
+        }else if(state==='transcribing'){
+          ltSetVoiceStatus('Finishing your words...');
+        }
+      },
+      onUpdate(text){
+        if(!current()) return;
+        input.value=text;
+        autoGrowField(input);
+        if(text.trim()) ltSetVoiceStatus('', true);
+      },
+      onError(message){
+        if(!current()) return;
+        failure=message;
+        ltSetVoiceStatus(message, true);
+      },
+      onTurn(text){
+        if(!current()) return;
+        ltStopListening();
+        if(text.trim()) return ltSendMessage(text);
+        if(!failure) ltSetVoiceStatus("Didn't catch that - please speak again.", true);
+        return ltStartListening();
+      },
+    });
+    if(!current()){ if(capture) capture.cancel(); return; }
+    ltSttRecorder=capture;
+    if(!capture) ltSetVoiceStatus(failure || 'Microphone unavailable. End the call and allow microphone access to try again.', true);
+  }catch(e){
+    console.warn('[LiveCall] could not start listening:', e);
+    if(current()) ltSetVoiceStatus('Could not start the microphone. End the call and check microphone access.', true);
+  }finally{
+    if(epoch===ltVoiceEpoch) ltStartingStt=false;
+  }
 }
 
 async function ltEndCall(){
   ltCallActive=false;
-  ltSetChatControlsEnabled(false);
+  ltStopVoice();
   // Immediately cancel any in-flight twin reply instead of letting it finish
   // in the background — "End & Get Judged" should stop everything right away.
   if(ltSendAbortController) ltSendAbortController.abort();
@@ -3014,8 +3531,6 @@ async function ltEndCall(){
   if(ltAudioTimer) clearInterval(ltAudioTimer);
   if(ltMediaRecorder && ltMediaRecorder.state!=='inactive') ltMediaRecorder.stop();
   if(ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
-  if(ltRecognition) ltRecognition.stop();
-  if(window.speechSynthesis) speechSynthesis.cancel();
   document.getElementById('lt-end-call-btn').style.display='none';
   document.getElementById('lt-start-call-btn').style.display='inline-block';
   document.getElementById('lt-call-status').textContent='⏳ Judging your performance…';
@@ -3035,6 +3550,7 @@ async function ltEndCall(){
   }catch(e){
     document.getElementById('lt-call-status').textContent='Could not fetch judgment — please try again.';
   }
+  if(typeof guidedTour!=='undefined') guidedTour.refresh();
 }
 
 function ltScoreColor(score){
@@ -3095,7 +3611,7 @@ function ltRenderJudgment(j){
 
   const confScore = j.confidence_score!=null ? j.confidence_score : 0;
   const confCol = ltScoreColor(confScore/10);
-  const confHtml = `<div class="card" style="background:#13161f;margin-bottom:24px">
+  const confHtml = `<div class="card" data-tour="confidence-score" style="background:#13161f;margin-bottom:24px">
     <h2>🧭 Vyakti Confidence Score</h2>
     <p style="color:#7a809a;font-size:.82rem;margin:-6px 0 10px">A single composite score (0-100) built from every measured signal this session — voice, posture, facial expression, eyebrows, confidence, talking quality, and hand movements.</p>
     <div style="font-size:2.6rem;font-weight:800;color:${confCol};margin:4px 0 10px">${confScore}/100</div>
@@ -3103,7 +3619,7 @@ function ltRenderJudgment(j){
   </div>`;
 
   const hexagon = j.growth_hexagon || {};
-  const hexHtml = `<div class="card" style="background:#13161f;margin-bottom:24px">
+  const hexHtml = `<div class="card" data-tour="growth-hexagon" style="background:#13161f;margin-bottom:24px">
     <h2>⬡ Growth Hexagon</h2>
     <p style="color:#7a809a;font-size:.82rem;margin:-6px 0 10px">Six axes tracked across every session so you can see exactly where you're improving.</p>
     <div style="display:flex;justify-content:center">${ltRenderHexagonSVG(hexagon)}</div>
@@ -3112,7 +3628,7 @@ function ltRenderJudgment(j){
   const streak = j.streak;
   let streakHtml = '';
   if(streak){
-    streakHtml = `<div class="card" style="background:#13161f;margin-bottom:24px">
+    streakHtml = `<div class="card" data-tour="practice-streak" style="background:#13161f;margin-bottom:24px">
       <h2>🔥 Vyakti Streak — ${selectedUseCaseLabel||'This Use Case'}</h2>
       <div class="stats-grid">
         <div class="sim-stat"><div class="val">${streak.current_streak}</div><div class="lbl">Day Streak</div></div>
@@ -3136,14 +3652,14 @@ function ltRenderJudgment(j){
     </div>`).join('');
 
   c.innerHTML=`
-    <div class="counsellor-banner" style="margin-bottom:24px">
+    <div class="counsellor-banner" data-tour="judgment-summary" style="margin-bottom:24px">
       <h2>🏆 Your Live Performance Judgment</h2>
       <div class="summary">${j.situation_fit_summary||''}</div>
     </div>
     ${confHtml}
     ${hexHtml}
     ${streakHtml}
-    <div class="card" style="background:#13161f;margin-bottom:24px"><h2>📊 Score Breakdown</h2>${dimHtml}</div>
+    <div class="card" data-tour="score-breakdown" style="background:#13161f;margin-bottom:24px"><h2>📊 Score Breakdown</h2>${dimHtml}</div>
     ${momentsHtml?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>🔎 Where It Went Wrong (Moment-by-Moment)</h2><p style="color:#7a809a;font-size:.82rem;margin:-6px 0 14px">Exact points in the conversation where your facial expression, eyebrows, or posture worked against you — and how to fix each one.</p>${momentsHtml}</div>`:''}
     ${(j.strengths||[]).length?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>✅ Strengths</h2><ul style="padding-left:18px">${j.strengths.map(s=>`<li style="color:#d1d5e0;font-size:.86rem;margin-bottom:6px">${s}</li>`).join('')}</ul></div>`:''}
     ${(j.areas_to_improve||[]).length?`<div class="card" style="background:#13161f;margin-bottom:24px"><h2>⚠️ Areas to Improve</h2><ul style="padding-left:18px">${j.areas_to_improve.map(s=>`<li style="color:#d1d5e0;font-size:.86rem;margin-bottom:6px">${s}</li>`).join('')}</ul></div>`:''}
@@ -3151,6 +3667,7 @@ function ltRenderJudgment(j){
     ${j.worst_moment?`<div class="cluster-card"><div class="c-name">⚠️ Worst Moment</div><div class="c-desc">"${(j.worst_moment.quote||'')}"</div><div class="c-fix">${j.worst_moment.why||''}</div></div>`:''}
     ${(j.coaching_tips||[]).length?`<div class="card" style="background:#13161f;margin-top:0"><h2>🎯 Coaching Tips</h2><ul style="padding-left:18px">${j.coaching_tips.map(s=>`<li style="color:#d1d5e0;font-size:.86rem;margin-bottom:6px">${s}</li>`).join('')}</ul></div>`:''}
   `;
+  if(typeof guidedTour!=='undefined') guidedTour.refresh();
 }
 
 // ── Back-button-aware screen navigation ─────────────────────────
@@ -3158,19 +3675,15 @@ function ltRenderJudgment(j){
 // with the browser history so the native back/forward buttons move between
 // app screens instead of leaving the app.
 function hideAllAppScreens(){
+  if(typeof guidedTour!=='undefined') guidedTour.close({restoreFocus:false});
   clearTimeout(window._welcomeStep1Timer);
   // Navigating away (e.g. browser back) while a live call is running would
   // otherwise leave the camera/mic streaming invisibly in the background.
   if(typeof ltCallActive!=='undefined' && ltCallActive){
-    ltCallActive=false;
-    if(typeof ltFrameTimer!=='undefined' && ltFrameTimer) clearInterval(ltFrameTimer);
-    if(typeof ltAudioTimer!=='undefined' && ltAudioTimer) clearInterval(ltAudioTimer);
-    if(typeof ltMediaStream!=='undefined' && ltMediaStream) ltMediaStream.getTracks().forEach(t=>t.stop());
-    if(typeof ltRecognition!=='undefined' && ltRecognition) ltRecognition.stop();
+    ltEndCallSilently();
     const startBtn=document.getElementById('lt-start-call-btn'), endBtn=document.getElementById('lt-end-call-btn');
     if(startBtn) startBtn.style.display='inline-block';
     if(endBtn) endBtn.style.display='none';
-    if(typeof ltSetChatControlsEnabled==='function') ltSetChatControlsEnabled(false);
   }
   document.getElementById('login-gate').style.display='none';
   document.getElementById('welcome-step1').style.display='none';
@@ -3220,6 +3733,7 @@ function appShowScreen(screen, opts){
     const method = opts.replace ? 'replaceState' : 'pushState';
     history[method]({appScreen:screen}, '', '#'+screen);
   }
+  if(typeof guidedTour!=='undefined') guidedTour.showScreen(screen);
 }
 
 window.addEventListener('popstate', (e)=>{
@@ -3227,6 +3741,26 @@ window.addEventListener('popstate', (e)=>{
   appShowScreen(screen, {fromHistory:true});
 });
 
+const guidedTour=createGuidedTour({
+  document,window,
+  storage:{
+    getItem(key){return localStorage.getItem(key);},
+    setItem(key,value){localStorage.setItem(key,value);},
+  },
+  isAuthenticated:()=>!!twinAuthToken,
+  isCallActive:()=>ltCallActive,
+  onPause(screen){
+    clearTimeout(window._welcomeStep1Timer);
+    if(screen==='twin-intro-video') document.getElementById('twin-intro-video').pause();
+  },
+  onResume(screen){
+    if(location.hash!=='#'+screen) return;
+    if(screen==='welcome1') window._welcomeStep1Timer=setTimeout(()=>appShowScreen('twin-intro-video'),4000);
+    if(screen==='twin-intro-video'){
+      document.getElementById('twin-intro-video').play().catch(error=>console.warn('[Tutorial] Introduction playback unavailable:',error));
+    }
+  },
+});
 initAuthGate();
 </script>
 

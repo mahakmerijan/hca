@@ -16,6 +16,7 @@ flask>=3.0.0
 # defaults to Keras 3, which deepface does not yet support directly.
 deepface>=0.0.90
 tf-keras>=2.16.0
+mtcnn>=1.0.0
 
 # ── Digital Twin / LangChain / LangGraph stack ────────────────────
 langchain>=0.3.0

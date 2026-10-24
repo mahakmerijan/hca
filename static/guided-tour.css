@@ -1,0 +1,23 @@
+#tour-launch{position:fixed;bottom:18px;left:18px;z-index:10002;padding:10px 16px;border:1px solid #a599ff;border-radius:22px;background:#19152d;color:#f0edff;font-family:inherit;font-size:.85rem;font-weight:600;cursor:pointer;box-shadow:0 4px 18px #0005}
+#tour-launch:disabled{opacity:.55;cursor:not-allowed}
+#tour-launch[hidden],#tour-overlay[hidden]{display:none}
+#tour-overlay{position:fixed;inset:0;z-index:11000;isolation:isolate}
+#tour-spotlight{position:fixed;border:2px solid #b3a5ff;border-radius:10px;box-shadow:0 0 0 200vmax #050711bf;pointer-events:none}
+#tour-dialog{position:fixed;width:min(360px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box;padding:20px;background:#171b2a;color:#f0f2f8;border:1px solid #7c6af6;border-radius:14px;box-shadow:0 12px 48px #0009;font-family:inherit}
+#tour-progress{margin:0 0 8px;color:#b3a5ff;font-size:.76rem;font-weight:700}
+#tour-title{margin:0 0 10px;font-size:1.12rem;line-height:1.4}
+#tour-description{margin:0;color:#c6cad8;font-size:.88rem;line-height:1.65}
+.tour-actions{display:flex;align-items:center;gap:8px;margin-top:18px;flex-wrap:wrap}
+.tour-actions button{border-radius:8px;border:1px solid #424862;background:#22283a;color:#f0f2f8;padding:8px 14px;font:inherit;font-size:.82rem;cursor:pointer;min-height:36px}
+.tour-actions #tour-skip{margin-right:auto;background:transparent;border-color:transparent;color:#c6cad8}
+.tour-actions #tour-next{background:#7c6af6;border-color:#7c6af6;color:#fff}
+.tour-actions button:disabled{opacity:.4;cursor:not-allowed}
+#tour-launch:focus-visible,.tour-actions button:focus-visible{outline:3px solid #e2daff;outline-offset:3px}
+#tour-storage-note{margin:10px 0 0;color:#ffc97c;font-size:.75rem;line-height:1.5}
+#tour-storage-note:empty{display:none}
+.lt-judgment-empty{color:#7a809a;text-align:center;padding:40px}
+@media(max-width:600px){
+  #tour-launch{bottom:14px;left:12px;font-size:.76rem;padding:9px 12px}
+  #tour-dialog{padding:16px}
+  #use-case-select .uc-wrap{padding-bottom:76px}
+}

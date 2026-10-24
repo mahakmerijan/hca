@@ -1,8 +1,8 @@
 #!/bin/bash
-# Deployment script for hca_v2 on Contabo VPS (169.58.250.61)
+# Deployment script for hca_v2 on Contabo VPS (169.58.17.50)
 set -e
 
-PUBLIC_IP="${PUBLIC_IP:-169.58.250.61}"
+PUBLIC_IP="${PUBLIC_IP:-169.58.17.50}"
 # Browsers expose camera/mic (getUserMedia) only on secure origins, and Let's Encrypt
 # will not issue for a bare IP — sslip.io resolves <dashed-ip>.sslip.io to that IP, so it
 # gives us a certifiable hostname with no DNS registrar. Override DOMAIN for a real domain.
@@ -14,7 +14,7 @@ echo "    Domain: $DOMAIN"
 
 # 1. System update & deps
 apt-get update -y
-apt-get install -y python3.11 python3.11-venv python3-pip git curl nginx supervisor libsndfile1 ffmpeg libgl1-mesa-glx libglib2.0-0 certbot python3-certbot-nginx
+apt-get install -y python3.12 python3.12-venv python3-pip git curl nginx supervisor libsndfile1 ffmpeg libgl1-mesa-glx libglib2.0-0 certbot python3-certbot-nginx
 
 # 2. Clone or pull repo
 if [ -d /opt/hca ]; then
@@ -30,7 +30,7 @@ cd /opt/hca
 
 # 3. Python virtual environment
 if [ ! -d venv ]; then
-  python3.11 -m venv venv
+  python3.12 -m venv venv
 fi
 venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirements.txt
