@@ -965,6 +965,9 @@ function resetUI(){
 .lt-voice-transcript{margin-top:10px}
 .lt-voice-transcript textarea{width:100%;min-height:56px;padding:12px 13px;background:#0b0d13;border:1px solid #333a50;border-radius:8px;color:#d1d5e0;font-size:.87rem;font-family:inherit;line-height:1.4;outline:none;box-sizing:border-box;resize:none;overflow-y:hidden}
 .lt-voice-transcript p{margin:8px 0 0;color:#a0a5bb;font-size:.8rem}
+/* Mobile: stack the live-call chat below the video + End & Get Judged column so
+   the conversation gets the full width instead of a sliver on the right. */
+@media(max-width:720px){.lt-call-grid{grid-template-columns:1fr !important}}
 .mic-btn{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:1px solid #333a50;background:#13161f;color:#a599ff;font-size:.85rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;padding:0}
 .mic-btn:hover{border-color:#7c6af6;background:rgba(124,106,246,.12)}
 .mic-btn.listening{background:#f87171;border-color:#f87171;color:#fff;animation:mic-pulse 1.2s infinite}
@@ -1107,7 +1110,7 @@ function resetUI(){
         <div style="color:#7a809a;font-size:.82rem;margin-top:4px" id="lt-persona-summary"></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:20px;align-items:start">
+      <div class="lt-call-grid" style="display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:20px;align-items:start">
         <div>
           <video id="lt-video" autoplay muted playsinline style="width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:cover"></video>
           <canvas id="lt-canvas" style="display:none"></canvas>
