@@ -17,20 +17,23 @@ function deferred(){
   return {promise, resolve, reject};
 }
 
-function captureHarness(){
+function captureHarness({audioState='running'}={}){
   let processor;
   const requests=[], turns=[], updates=[], errors=[], states=[];
   const track = {readyState:'live', stop(){ throw new Error('Shared call track must not be stopped'); }};
   const node = () => ({connect(){}, disconnect(){}});
   class AudioContext {
     sampleRate=1000;
-    state='running';
+    state=audioState;
     destination={};
-    createMediaStreamSource(){ return node(); }
+    createMediaStreamSource(){
+      assert.equal(this.state,'running','Microphone audio context must be resumed before capture');
+      return node();
+    }
     createScriptProcessor(){ processor={...node(), onaudioprocess:null}; return processor; }
     createGain(){ return {...node(), gain:{value:0}}; }
     close(){ return Promise.resolve(); }
-    resume(){ return Promise.resolve(); }
+    resume(){ this.state='running'; return Promise.resolve(); }
   }
   const ctx=vm.createContext({
     Float32Array, ArrayBuffer, DataView, Uint8Array, Map, Math, console, AbortController,
@@ -55,6 +58,19 @@ function captureHarness(){
     }
   };
 }
+
+test('question microphone resumes a suspended mobile audio context and transcribes speech', async () => {
+  const h=captureHarness({audioState:'suspended'});
+  const capture=await h.start({onTurn:undefined,silenceMs:700});
+  h.push(400,0.2);
+  for(const request of h.requests) request.resolve('My mobile answer');
+  await tick();
+  assert.ok(h.updates.includes('My mobile answer'));
+  capture.stop();
+  for(const request of h.requests) request.resolve('My mobile answer');
+  await tick();
+  assert.equal(h.states.at(-1),'idle');
+});
 
 test('1500 ms of silence ends one turn, waits for transcription, then emits it exactly once', async () => {
   const h=captureHarness();

@@ -1639,6 +1639,7 @@ async function startServerVoiceCapture({stream, onStateChange, onUpdate, onError
     tracks=ownStream.getAudioTracks();
   }
   const ctx=new AudioCtx();
+  if(ctx.state==='suspended') await ctx.resume();
   const source=ctx.createMediaStreamSource(new MediaStream(tracks));
   const processor=ctx.createScriptProcessor(2048,1,1);
   const mute=ctx.createGain(); mute.gain.value=0;
@@ -1788,6 +1789,9 @@ async function startVoiceInput(qid, btn){
   const fieldEl = document.getElementById('q-'+qid);
   if(!fieldEl) return;
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mobileVoice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if(mobileVoice) return startServerVoiceInput(qid, btn, fieldEl);
   if(!Recognition || voiceUseServerStt){ startServerVoiceInput(qid, btn, fieldEl); return; }
 
   const baseText = fieldEl.value ? fieldEl.value.trim() + ' ' : '';

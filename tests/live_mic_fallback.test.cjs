@@ -40,6 +40,41 @@ test('question-form mic buttons also fall back to server transcription', () => {
   assert.match(fn[0], /if\(fallBack\) startServerVoiceInput\(qid, btn, fieldEl\)/);
 });
 
+for(const [device, navigator] of [
+  ['Android', {userAgent:'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile', maxTouchPoints:5}],
+  ['iPhone', {userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', maxTouchPoints:5}],
+  ['iPad desktop mode', {userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)', maxTouchPoints:5}],
+]){
+  test(`${device} question mic uses server capture and types the transcript`, async () => {
+    const field={value:'Existing answer', placeholder:'Answer'};
+    const btn={classList:{toggle(){}}, disabled:false};
+    let captureOptions;
+    const ctx=vm.createContext({
+      navigator,
+      window:{SpeechRecognition:class { start(){ assert.fail('Mobile must not wait for browser recognition'); } }},
+      document:{getElementById:()=>field},
+      alert:assert.fail,
+      startServerVoiceCapture:async options=>{
+        captureOptions=options;
+        options.onStateChange('listening');
+        return {stop(){ options.onStateChange('idle'); }};
+      },
+    });
+    vm.runInContext('let _activeVoiceBtn=null; let voiceUseServerStt=false; const twinFormData={};',ctx);
+    for(const name of ['setVoiceBtnState','stopVoiceBtn','startVoiceInput','startServerVoiceInput']){
+      vm.runInContext(template.match(new RegExp(`^(?:async )?function ${name}\\([^]*?^}`, 'm'))[0],ctx);
+    }
+    await ctx.startVoiceInput('answer',btn);
+    assert.ok(captureOptions, 'Server capture starts immediately');
+    captureOptions.onUpdate('My spoken answer');
+    assert.equal(field.value,'Existing answer My spoken answer');
+    assert.equal(vm.runInContext('twinFormData.answer',ctx),field.value);
+    await ctx.startVoiceInput('answer',btn);
+    assert.equal(btn.disabled,false);
+    assert.equal(vm.runInContext('_activeVoiceBtn',ctx),null);
+  });
+}
+
 test('every SpeechRecognition user has a server fallback', () => {
   const users = [...template.matchAll(/^(?:async )?function (\w+)\([^)]*\)\{[^]*?^}/gm)]
     .filter(m => /new Recognition\(\)/.test(m[0]));
