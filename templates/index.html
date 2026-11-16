@@ -3303,7 +3303,9 @@ async function ltRenderChatMessage(role, content){
     ltSpeaking=true;
     ltSetVoiceStatus('Twin speaking - your microphone will listen when the twin finishes.');
     await new Promise(resolve=>{
+      let watchdog=null;
       const finish=()=>{
+        if(watchdog){ clearInterval(watchdog); watchdog=null; }
         if(ltFinishPlayback!==finish) return;
         ltFinishPlayback=null;
         ltCurrentUtterance=null;
@@ -3328,6 +3330,23 @@ async function ltRenderChatMessage(role, content){
         };
         ltCurrentUtterance=u;
         speechSynthesis.speak(u);
+        // Mobile browsers (notably Android Chrome) sometimes drop an utterance
+        // without ever firing onend/onerror, leaving ltSpeaking stuck and the
+        // microphone off for the rest of the call. Poll the engine as a safety
+        // net: nudge a silently-paused engine with resume(), detect completion
+        // whose onend was lost, and enforce start/total deadlines so listening
+        // always comes back.
+        let sawSpeech=false;
+        const startBy=Date.now()+6000;
+        const deadline=Date.now()+Math.min(90000, 5000+content.length*90);
+        watchdog=setInterval(()=>{
+          if(ltCurrentUtterance!==u){ clearInterval(watchdog); watchdog=null; return; }
+          try{ speechSynthesis.resume(); }catch(_){}
+          if(speechSynthesis.speaking) sawSpeech=true;
+          const silentDrop=!sawSpeech && Date.now()>startBy;
+          const lostOnEnd=sawSpeech && !speechSynthesis.speaking && !speechSynthesis.pending;
+          if(silentDrop || lostOnEnd || Date.now()>deadline) finish();
+        },400);
       }catch(e){
         console.warn('[TTS] speechSynthesis failed:', e);
         ltSetVoiceStatus('Twin voice unavailable. Read the reply above, then speak.', true);

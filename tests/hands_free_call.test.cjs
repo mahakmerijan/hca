@@ -187,7 +187,7 @@ function liveHarness(){
   const captures=[], sent=[], statuses=[], messages=[], spoken=[];
   const input={value:'', style:{}, scrollHeight:40};
   const ctx=vm.createContext({
-    console, AbortController, setTimeout, clearTimeout,
+    console, AbortController, setTimeout, clearTimeout, setInterval, clearInterval,
     ltCallActive:true, ltSpeaking:false, ltSending:false,
     ltSttRecorder:null, ltStartingStt:false, ltVoiceEpoch:0, ltCallEpoch:0,
     ltSessionId:'test-session', ltMediaStream:{}, ltSendAbortController:null,
@@ -313,6 +313,23 @@ test('TTS errors are visible and release the speaking gate', async () => {
   await playback;
   assert.equal(h.ctx.ltSpeaking,false);
   assert.ok(h.statuses.some(message=>message.includes('voice')));
+});
+
+test('an utterance dropped without onend (mobile) is detected and releases the mic', async () => {
+  const h=liveHarness();
+  // Engine reports speech in progress, then silently stops without ever
+  // firing onend/onerror — the Android Chrome failure mode.
+  h.ctx.speechSynthesis.speaking=true;
+  h.ctx.speechSynthesis.pending=false;
+  h.ctx.speechSynthesis.resume=()=>{};
+  load(h.ctx,'ltRenderChatMessage');
+  const playback=h.ctx.ltRenderChatMessage('twin','Your question');
+  assert.equal(h.ctx.ltSpeaking,true);
+  await new Promise(r=>setTimeout(r,500)); // let the watchdog observe speech
+  h.ctx.speechSynthesis.speaking=false;    // speech ends, onend never fires
+  await playback;
+  assert.equal(h.ctx.ltSpeaking,false);
+  assert.equal(h.ctx.ltFinishPlayback,null);
 });
 
 test('a reply from an ended call cannot play in a newly started call', async () => {
